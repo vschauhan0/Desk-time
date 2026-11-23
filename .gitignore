@@ -1,0 +1,15 @@
+.dev/
+bin/
+obj/
+node_modules/
+.next/
+*.pfx
+*.user
+serversettings.local.json
+agentsettings.local.json
+logs/
+artifacts/
+publish/
+.vs/
+
+.run/

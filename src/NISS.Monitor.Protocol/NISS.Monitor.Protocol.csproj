@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NISS.Monitor.Protocol</RootNamespace>
+    <Description>Wire contract shared by the NISS endpoint agent, the API server and (as TypeScript mirrors) the dashboard.</Description>
+  </PropertyGroup>
+
+</Project>

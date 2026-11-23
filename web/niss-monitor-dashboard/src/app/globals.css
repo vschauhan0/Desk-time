@@ -1,0 +1,446 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ------------------------------------------------------------------------------------------
+   Design tokens. Light is the default; dark is selected (not auto-inverted) and applies via the
+   theme toggle (data-theme) or the OS preference when the viewer has not chosen.
+   Categorical chart colours follow a validated fixed order (blue, orange, aqua, yellow, ...).
+   ------------------------------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f6;
+  --surface-3: #e7eaf0;
+  --line: #e1e5ec;
+  --line-strong: #c9cfda;
+  --fg: #12161f;
+  --muted: #55607a;
+  --faint: #7c86a0;
+  --brand: #2456e5;
+  --brand-strong: #1a43c0;
+  --brand-soft: #e6edfd;
+  --on-brand: #ffffff;
+  --ok: #0b7f57;
+  --ok-soft: #dff4ea;
+  --warn: #9a6200;
+  --warn-soft: #fcf0d2;
+  --danger: #c22f2f;
+  --danger-soft: #fce6e6;
+  --info: #1f62c4;
+  --info-soft: #e2edfb;
+  --neutral-soft: #eceff4;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
+  --shadow-pop: 0 12px 32px rgb(16 24 40 / 18%);
+
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --c4: #eda100;
+  --c5: #e87ba4;
+  --c6: #008300;
+  --c7: #4a3aa7;
+  --c8: #e34948;
+  --grid: #e3e6ec;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0f15;
+  --surface: #141923;
+  --surface-2: #1a2030;
+  --surface-3: #232a3c;
+  --line: #262e40;
+  --line-strong: #37415a;
+  --fg: #e8ecf4;
+  --muted: #a1abc2;
+  --faint: #6f7a94;
+  --brand: #6b95ff;
+  --brand-strong: #8fb0ff;
+  --brand-soft: #182446;
+  --on-brand: #0b1330;
+  --ok: #3ccb96;
+  --ok-soft: #10312a;
+  --warn: #e5ac45;
+  --warn-soft: #382a10;
+  --danger: #f27272;
+  --danger-soft: #3b1b1e;
+  --info: #6ea6f0;
+  --info-soft: #14284a;
+  --neutral-soft: #232a3a;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 55%);
+
+  --c1: #3987e5;
+  --c2: #d95926;
+  --c3: #199e70;
+  --c4: #c98500;
+  --c5: #d55181;
+  --c6: #008300;
+  --c7: #9085e9;
+  --c8: #e66767;
+  --grid: #2a3246;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --bg: #0c0f15;
+    --surface: #141923;
+    --surface-2: #1a2030;
+    --surface-3: #232a3c;
+    --line: #262e40;
+    --line-strong: #37415a;
+    --fg: #e8ecf4;
+    --muted: #a1abc2;
+    --faint: #6f7a94;
+    --brand: #6b95ff;
+    --brand-strong: #8fb0ff;
+    --brand-soft: #182446;
+    --on-brand: #0b1330;
+    --ok: #3ccb96;
+    --ok-soft: #10312a;
+    --warn: #e5ac45;
+    --warn-soft: #382a10;
+    --danger: #f27272;
+    --danger-soft: #3b1b1e;
+    --info: #6ea6f0;
+    --info-soft: #14284a;
+    --neutral-soft: #232a3a;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --c4: #c98500;
+    --c5: #d55181;
+    --c6: #008300;
+    --c7: #9085e9;
+    --c8: #e66767;
+    --grid: #2a3246;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral-soft: var(--neutral-soft);
+  --font-sans: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------------------------------
+   Component classes (kept in CSS so tokens/dark mode apply in one place).
+   ------------------------------------------------------------------------------------------ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-strong);
+  border-color: var(--brand-strong);
+}
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(0.92);
+  background: var(--danger);
+}
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.btn-sm {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.btn-icon {
+  width: 34px;
+  padding: 0;
+}
+
+.field {
+  height: 34px;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0 10px;
+  font-size: 13px;
+}
+.field::placeholder {
+  color: var(--faint);
+}
+textarea.field {
+  height: auto;
+  padding: 8px 10px;
+}
+.field:disabled {
+  opacity: 0.6;
+}
+select.field {
+  padding-right: 6px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--neutral-soft);
+  color: var(--muted);
+}
+.pill-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.pill-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.pill-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.pill-brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+/* Tables: sticky header, hairline rows, no zebra. Wrap in .table-wrap for scrolling. */
+.table-wrap {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+}
+.data-table tr[data-clickable="true"] {
+  cursor: pointer;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.pulse {
+  animation: pulse-dot 1.6s infinite ease-in-out;
+}
+
+@keyframes flash-in {
+  from {
+    background: var(--brand-soft);
+  }
+  to {
+    background: transparent;
+  }
+}
+.flash-in {
+  animation: flash-in 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .pulse,
+  .flash-in {
+    animation: none;
+  }
+}
+
+/* Recharts tweaks */
+.recharts-text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.recharts-cartesian-grid line {
+  stroke: var(--grid);
+}
+.recharts-default-tooltip {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--shadow-pop);
+}
+
+/* Print: reports render as a clean sheet */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .card,
+  .table-wrap {
+    box-shadow: none !important;
+    border-color: #bbb !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .data-table th {
+    position: static;
+    background: #eee !important;
+    color: #000 !important;
+  }
+  .app-main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "Agent": {
+    "Server": {
+      "BaseUrl": "https://192.168.1.10:8443",
+      "CertificateThumbprint": "",
+      "RequestTimeoutSeconds": 30
+    },
+    "Monitoring": {
+      "HeartbeatSeconds": 30,
+      "ForegroundPollMilliseconds": 1000,
+      "SystemMetricsSeconds": 30,
+      "ProcessPollSeconds": 2,
+      "IdleThresholdMinutes": 5
+    },
+    "Storage": {
+      "DataDirectory": "",
+      "KeepUploadedHours": 24,
+      "MaxPendingEvents": 1000000
+    },
+    "Session": {
+      "LaunchSessionAgents": true,
+      "RequireTrustedClientPath": true,
+      "StaleAfterSeconds": 20
+    },
+    "Enrollment": {
+      "Token": "",
+      "EmployeeId": ""
+    }
+  }
+}

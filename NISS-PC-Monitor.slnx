@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/server/">
+    <Project Path="server/NISS.Api.Tests/NISS.Api.Tests.csproj" />
+    <Project Path="server/NISS.Api/NISS.Api.csproj" />
+    <Project Path="server/NISS.Application/NISS.Application.csproj" />
+    <Project Path="server/NISS.Domain/NISS.Domain.csproj" />
+    <Project Path="server/NISS.Infrastructure/NISS.Infrastructure.csproj" />
+    <Project Path="server/NISS.Workers/NISS.Workers.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/NISS.Monitor.Cli/NISS.Monitor.Cli.csproj" />
+    <Project Path="src/NISS.Monitor.Core/NISS.Monitor.Core.csproj" />
+    <Project Path="src/NISS.Monitor.Infrastructure/NISS.Monitor.Infrastructure.csproj" />
+    <Project Path="src/NISS.Monitor.Installer/NISS.Monitor.Installer.csproj" />
+    <Project Path="src/NISS.Monitor.Protocol/NISS.Monitor.Protocol.csproj" />
+    <Project Path="src/NISS.Monitor.Service/NISS.Monitor.Service.csproj" />
+    <Project Path="src/NISS.Monitor.Session/NISS.Monitor.Session.csproj" />
+    <Project Path="src/NISS.Monitor.Tests/NISS.Monitor.Tests.csproj" />
+    <Project Path="src/NISS.Monitor.Watchdog/NISS.Monitor.Watchdog.csproj" />
+  </Folder>
+</Solution>

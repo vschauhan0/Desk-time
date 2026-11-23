@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="../src/NISS.Monitor.Protocol/NISS.Monitor.Protocol.csproj" />
+  <Project Path="NISS.Api.Tests/NISS.Api.Tests.csproj" />
+  <Project Path="NISS.Api/NISS.Api.csproj" />
+  <Project Path="NISS.Application/NISS.Application.csproj" />
+  <Project Path="NISS.Domain/NISS.Domain.csproj" />
+  <Project Path="NISS.Infrastructure/NISS.Infrastructure.csproj" />
+  <Project Path="NISS.Workers/NISS.Workers.csproj" />
+</Solution>

@@ -1,0 +1,12 @@
+{
+  "Server": {
+    "Certificate": { "Path": "certs/niss-server.pfx", "Password": "<pfx password>", "Thumbprint": "" }
+  },
+  "Database": {
+    "ConnectionString": "Host=127.0.0.1;Port=5432;Database=niss_monitor;Username=niss_monitor;Password=<database password>"
+  },
+  "Security": {
+    "JwtSigningKey": "",
+    "BootstrapAdminPassword": ""
+  }
+}

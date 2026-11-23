@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>NISSMonitorSetup</AssemblyName>
+    <RootNamespace>NISS.Monitor.Installer</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared, dependency-free setup helpers (service registration, recovery, ACLs); also used by the agent CLI repair command. -->
+    <Compile Include="..\NISS.Monitor.Infrastructure\Setup\AgentSetup.cs" Link="Shared\AgentSetup.cs" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- Build-Agent.ps1 passes -p:PayloadZip=path to embed the agent payload into the single-file setup. -->
+  <ItemGroup Condition="'$(PayloadZip)' != '' And Exists('$(PayloadZip)')">
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="NISSMonitorPayload.zip" />
+  </ItemGroup>
+
+</Project>

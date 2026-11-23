@@ -1,0 +1,37 @@
+{
+  "Server": {
+    "BindIp": "0.0.0.0",
+    "Port": 8443,
+    "Certificate": { "Path": "", "Password": "", "Thumbprint": "" },
+    "AllowInsecureHttp": false
+  },
+  "Dashboard": { "Port": 3000 },
+  "Database": {
+    "ConnectionString": "Host=127.0.0.1;Port=5432;Database=niss_monitor;Username=niss_monitor;Password=CHANGE-ME-in-serversettings.local.json",
+    "ApplyMigrationsOnStartup": true
+  },
+  "Security": {
+    "JwtSigningKey": "",
+    "AccessTokenMinutes": 15,
+    "RefreshTokenHours": 8,
+    "BootstrapAdminUsername": "admin",
+    "BootstrapAdminPassword": ""
+  },
+  "Monitoring": {
+    "HeartbeatSeconds": 30,
+    "MetricsSeconds": 30,
+    "IdleThresholdMinutes": 5,
+    "HeartbeatWarningSeconds": 60,
+    "OfflineSeconds": 300,
+    "BacklogWarningThreshold": 5000,
+    "MinAgentVersion": ""
+  },
+  "Retention": {
+    "RawEventsDays": 90,
+    "ApplicationSummariesDays": 365,
+    "DeviceHealthDays": 180,
+    "AuditLogsDays": 365
+  },
+  "RateLimits": { "LoginPerMinute": 5, "EnrollPerMinute": 10, "IngestPerMinute": 1200 },
+  "Workers": { "Enabled": true, "HealthIntervalSeconds": 15, "RetentionHourLocal": 3, "TokenCleanupIntervalMinutes": 60 }
+}
