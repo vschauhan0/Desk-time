@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NISS.Application.Abstractions;
+using NISS.Application.Options;
+using NISS.Application.Screenshots;
 using NISS.Application.Settings;
 
 namespace NISS.Application.Retention;
@@ -12,7 +15,14 @@ public interface IRetentionService
     Task<IReadOnlyDictionary<string, long>> RunAsync(CancellationToken ct);
 }
 
-internal sealed class RetentionService(IRetentionStore store, ISettingsService settings, TimeProvider clock, ILogger<RetentionService> log) : IRetentionService
+internal sealed class RetentionService(
+    IRetentionStore store,
+    ISettingsService settings,
+    IAppDbContext db,
+    IScreenshotStore screenshots,
+    IOptions<ScreenshotStorageOptions> screenshotOptions,
+    TimeProvider clock,
+    ILogger<RetentionService> log) : IRetentionService
 {
     public async Task<IReadOnlyDictionary<string, long>> RunAsync(CancellationToken ct)
     {
@@ -34,6 +44,16 @@ internal sealed class RetentionService(IRetentionStore store, ISettingsService s
         await Prune("applicationSummaries", r.ApplicationSummariesDays, RetentionTarget.ApplicationSessions, RetentionTarget.ProcessSessions, RetentionTarget.UserSessions);
         await Prune("deviceHealth", r.DeviceHealthDays, RetentionTarget.SystemMetrics, RetentionTarget.Heartbeats, RetentionTarget.SecurityEvents);
         await Prune("auditLogs", r.AuditLogsDays, RetentionTarget.AuditLogs);
+        // Screenshots are files on disk plus rows: delete both through the store (ExecuteDelete would orphan the files).
+        var shotDays = screenshotOptions.Value.RetentionDays;
+        if (shotDays > 0)
+        {
+            var cutoff = now.AddDays(-shotDays);
+            var expired = await db.Screenshots.Where(s => s.CapturedAtUtc < cutoff).ToListAsync(ct);
+            if (expired.Count > 0) await screenshots.DeleteAsync(expired, ct);
+            result["screenshots"] = expired.Count;
+        }
+
         // Expired refresh tokens are housekeeping, not policy.
         result["refreshTokens"] = await store.DeleteOlderThanAsync(RetentionTarget.RefreshTokens, now.AddDays(-7), ct);
 

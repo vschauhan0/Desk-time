@@ -5,7 +5,7 @@ Authorized, transparent telemetry for **organization-owned / managed Windows PCs
 * **Endpoint agent** - a normal Windows Service (`NISSMonitor.Service.exe`) plus a per-session process (`NISSMonitor.Session.exe`) and an admin CLI (`NISSAgent.exe`).
 * **Central server** - ASP.NET Core API + SignalR + PostgreSQL, running on your PC.
 * **Dashboard** - Next.js / React / Tailwind, live via SignalR.
-* No cloud services. No screenshots, no browser history, no key logging, no stealth.
+* No cloud services. No browser history, no key logging. **Optional** screenshots + live screen view, SUPERADMIN-only and **off by default** (see [Screen capture & live view](#screen-capture--live-view)).
 
 > This system is for *authorized* monitoring of company-managed devices. Tell employees what is collected and follow your local legal
 > requirements. It deliberately contains no hidden persistence, rootkit, credential-capture or anti-admin behavior. See [docs/security.md](docs/security.md).
@@ -74,11 +74,22 @@ Process start/stop with parent/path/user/session, optional command line + SHA-25
 idle / active / locked, login / logout, session connect / disconnect - keyboard and mouse **activity counts** (clicks, double-clicks, wheel, optional cursor sampling; no characters) -
 CPU / RAM / disk / uptime / OS / manufacturer / model / serial / IPs / MACs / battery / displays - network up/down - USB arrival/removal - optional file metadata (create/modify/rename/delete) -
 heartbeat, clock-offset correction, offline queue with ordered retry and idempotent upload, credential rotation, disable / revoke / re-enroll, agent health (offline, delayed, stopped, session agent missing, backlog, outdated, auth failure, crash recovery),
-audit log, reports (8 kinds + CSV), application categories, retention worker, live dashboard over SignalR.
+audit log, reports (8 kinds + CSV), application categories, retention worker, live dashboard over SignalR -
+**optional** policy-gated **screenshots** (silent periodic stills → per-device timeline, retention-pruned) and **live screen view** (on-demand, view-only, employee sees a notice), both SUPERADMIN-only and off by default.
+
+## Screen capture & live view
+
+Optional, **SUPERADMIN-only**, and **disabled by default** (enable per scope in Settings → policy, pilot one PC first):
+
+* **Silent periodic screenshots** — the session agent captures the screen on an interval (default 60s, only when unlocked and active), uploads JPEGs stored as files on the server with a metadata row, viewable as a per-device **Screens → timeline** in the dashboard. Auto-deleted after `ScreenshotStorage:RetentionDays` (default 14). **No employee-visible indication.**
+* **Live view ("like UltraViewer", view-only)** — a SUPERADMIN watches a device's screen in near real time over a persistent agent websocket relayed through SignalR. No input/control, **nothing recorded**. While a live session is active the employee sees a small, click-through on-screen notice that their screen is being viewed; capping at `ScreenLive:MaxSessionMinutes` (default 30).
+* Every stored-image view and every live session is written to the **audit log**.
+
+Screenshots can contain anything on screen (credentials, personal, financial, health data). They are stored as **plaintext JPEGs** with ordinary file permissions — lock down the server and the `ScreenshotStorage:Root` folder. Silent monitoring of company devices is normally lawful **only where the organization has disclosed in writing (employment contract / acceptable-use policy) that company devices are monitored**; this system assumes that disclosure exists and does not create it. This is not legal advice.
 
 ## Intentionally excluded (by design)
 
-Raw keylogging / typed characters, passwords, OTPs, clipboard harvesting, screenshots (interface `IScreenCaptureService` exists, disabled), webcam/microphone, browser history / URLs / DNS reconstruction / HTTPS inspection
+Raw keylogging / typed characters, passwords, OTPs, clipboard harvesting, webcam/microphone, browser history / URLs / DNS reconstruction / HTTPS inspection
 (`IBrowserMonitoringProvider` reports "Not Enabled"; V2), rootkit / kernel / stealth persistence / code injection, disabling security software, anti-admin protection, hidden binaries, unauthorized remote execution.
 
 ## What was verified (and what was not)

@@ -32,6 +32,15 @@
     "DeviceHealthDays": 180,
     "AuditLogsDays": 365
   },
+  "ScreenshotStorage": {
+    "Root": "",
+    "RetentionDays": 14,
+    "MinFreeDiskMb": 2048
+  },
+  "ScreenLive": {
+    "MaxSessionMinutes": 30,
+    "MaxFps": 8
+  },
   "RateLimits": { "LoginPerMinute": 5, "EnrollPerMinute": 10, "IngestPerMinute": 1200 },
   "Workers": { "Enabled": true, "HealthIntervalSeconds": 15, "RetentionHourLocal": 3, "TokenCleanupIntervalMinutes": 60 }
 }
