@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using NISS.Api.Http;
 using NISS.Api.Security;
+using NISS.Application.Common;
 using NISS.Application.Screenshots;
 
 namespace NISS.Api.Features;
@@ -34,5 +35,20 @@ public static class ScreenshotEndpoints
             })
             .RequireAuthorization(AuthDefaults.DevicePolicy)
             .RequireRateLimiting(RateLimiting.Ingest);
+
+        // SUPERADMIN-only timeline reads.
+        var sa = api.MapGroup("/devices").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
+
+        sa.MapGet("/{deviceId}/screenshots", async (
+                string deviceId, DateTimeOffset? from, DateTimeOffset? to, int? page, int? pageSize,
+                IScreenshotQueryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(deviceId, from, to, PageRequest.From(page, pageSize), ct)));
+
+        sa.MapGet("/{deviceId}/screenshots/{id:guid}/image", async (
+                string deviceId, Guid id, IScreenshotQueryService svc, CancellationToken ct) =>
+            {
+                var file = await svc.GetImageAsync(deviceId, id, ct);
+                return Results.Stream(file.Content, "image/jpeg");
+            });
     }
 }

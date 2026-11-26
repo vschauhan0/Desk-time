@@ -29,6 +29,9 @@ public static class AuditActions
     public const string AdminUserUpdated = "ADMIN_USER_UPDATED";
     public const string AdminUserDeleted = "ADMIN_USER_DELETED";
     public const string SecurityEventResolved = "SECURITY_EVENT_RESOLVED";
+    public const string ScreenshotViewed = "SCREENSHOT_VIEWED";
+    public const string LiveViewStarted = "LIVE_VIEW_STARTED";
+    public const string LiveViewEnded = "LIVE_VIEW_ENDED";
 }
 
 internal sealed class AuditService(IAppDbContext db, ICurrentUser user, TimeProvider clock) : IAuditService

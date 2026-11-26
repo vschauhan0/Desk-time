@@ -11,6 +11,20 @@ namespace NISS.Monitor.Protocol;
 /// <summary>Generic page wrapper. Query string: page (1-based, default 1), pageSize (default 50, max 500).</summary>
 public sealed record Paged<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 
+/// <summary>One stored screenshot's metadata for the dashboard timeline (the JPEG is fetched separately).</summary>
+public sealed record ScreenshotDto(
+    Guid Id,
+    DateTimeOffset CapturedAtUtc,
+    int Monitor,
+    int Width,
+    int Height,
+    int ByteSize,
+    string? SessionUser,
+    Guid? EmployeeId);
+
+/// <summary>A started live-view session: the SignalR group the dashboard joins to receive frames.</summary>
+public sealed record LiveViewSessionDto(Guid LiveSessionId, string DeviceId, string HubGroup, int Monitor, DateTimeOffset StartedAtUtc);
+
 // ----- Auth -----------------------------------------------------------------------------------
 
 /// <summary>POST /auth/login (anonymous, rate limited).</summary>
