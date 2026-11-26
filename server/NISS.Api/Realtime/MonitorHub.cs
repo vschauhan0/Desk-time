@@ -13,6 +13,7 @@ public static class HubGroups
     public const string All = "all";
     public const string Feed = "feed";
     public static string Device(string deviceId) => $"device:{deviceId}";
+    public static string Live(Guid liveSessionId) => $"live:{liveSessionId}";
 }
 
 /// <summary>
@@ -40,6 +41,17 @@ public sealed partial class MonitorHub : Hub
     public Task SubscribeFeed() => Groups.AddToGroupAsync(Context.ConnectionId, HubGroups.Feed);
 
     public Task UnsubscribeFeed() => Groups.RemoveFromGroupAsync(Context.ConnectionId, HubGroups.Feed);
+
+    /// <summary>Join a live-view session's frame group. SUPERADMIN only; the id is an unguessable per-session guid.</summary>
+    [Authorize(Policy = AuthDefaults.SuperAdminPolicy)]
+    public Task WatchLive(string liveSessionId) => Guid.TryParse(liveSessionId, out var id)
+        ? Groups.AddToGroupAsync(Context.ConnectionId, HubGroups.Live(id))
+        : throw new HubException("Invalid live session id.");
+
+    [Authorize(Policy = AuthDefaults.SuperAdminPolicy)]
+    public Task StopWatchLive(string liveSessionId) => Guid.TryParse(liveSessionId, out var id)
+        ? Groups.RemoveFromGroupAsync(Context.ConnectionId, HubGroups.Live(id))
+        : Task.CompletedTask;
 }
 
 /// <summary>Publishes application notifications through SignalR.</summary>

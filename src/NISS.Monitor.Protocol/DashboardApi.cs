@@ -388,5 +388,9 @@ public static class HubMethods
     public const string EventIngested = "EventIngested";
     public const string DeviceStatusChanged = "DeviceStatusChanged";
     public const string SecurityEventRaised = "SecurityEventRaised";
+    public const string ScreenFrame = "ScreenFrame";
     public const string Route = "/hubs/monitor";
 }
+
+/// <summary>One live-view frame pushed to a watching dashboard over SignalR (JPEG as base64).</summary>
+public sealed record ScreenFrameMessage(Guid LiveSessionId, int Monitor, string JpegBase64);

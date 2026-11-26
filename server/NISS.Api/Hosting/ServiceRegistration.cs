@@ -32,6 +32,7 @@ public static class ServiceRegistration
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddSingleton<IRealtimeNotifier, SignalRNotifier>();
+        services.AddSingleton<Realtime.ILiveRelay, Realtime.LiveRelay>();
         services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
         // One JSON wire format everywhere (camelCase, string enums, nulls omitted) - identical to NISS.Monitor.Protocol.
@@ -79,6 +80,7 @@ public static class ServiceRegistration
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing")) app.UseHsts();
+        app.UseWebSockets();
         app.UseRouting();
         app.UseCors(CorsConfiguration.PolicyName);   // after routing (endpoint metadata), before authentication so 401/403 carry CORS headers
         app.UseAuthentication();
@@ -96,6 +98,7 @@ public static class ServiceRegistration
         api.MapEnrollmentTokens();
         api.MapDevices();
         api.MapScreenshots();
+        api.MapLiveSocket();
         api.MapEmployees();
         api.MapEventLists();
         api.MapReports();
