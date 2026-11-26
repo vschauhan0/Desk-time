@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NISS.Api.Security;
 using NISS.Application.Abstractions;
+using NISS.Application.Live;
 using NISS.Monitor.Protocol;
 
 namespace NISS.Api.Realtime;
@@ -21,7 +22,7 @@ public static class HubGroups
 /// event feed (<c>feed</c>) or to one device's events (<c>device:{id}</c>).
 /// </summary>
 [Authorize(Policy = AuthDefaults.ViewerPolicy)]
-public sealed partial class MonitorHub : Hub
+public sealed partial class MonitorHub(ILiveViewService liveView, LiveSessionRegistry liveSessions) : Hub
 {
     [GeneratedRegex("^[A-Za-z0-9_-]{1,32}$")]
     private static partial Regex DeviceIdPattern();
@@ -30,6 +31,17 @@ public sealed partial class MonitorHub : Hub
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, HubGroups.All);
         await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        // A watcher that closed its tab / navigated away / crashed stops counting; end any session it was the last to watch.
+        foreach (var sessionId in liveSessions.SessionsWatchedBy(Context.ConnectionId))
+        {
+            if (liveSessions.RemoveViewer(sessionId, Context.ConnectionId) == 0)
+                await liveView.StopAsync(sessionId, CancellationToken.None);
+        }
+        await base.OnDisconnectedAsync(exception);
     }
 
     public Task SubscribeDevice(string deviceId) => DeviceIdPattern().IsMatch(deviceId ?? "")
@@ -44,14 +56,21 @@ public sealed partial class MonitorHub : Hub
 
     /// <summary>Join a live-view session's frame group. SUPERADMIN only; the id is an unguessable per-session guid.</summary>
     [Authorize(Policy = AuthDefaults.SuperAdminPolicy)]
-    public Task WatchLive(string liveSessionId) => Guid.TryParse(liveSessionId, out var id)
-        ? Groups.AddToGroupAsync(Context.ConnectionId, HubGroups.Live(id))
-        : throw new HubException("Invalid live session id.");
+    public async Task WatchLive(string liveSessionId)
+    {
+        if (!Guid.TryParse(liveSessionId, out var id)) throw new HubException("Invalid live session id.");
+        liveSessions.AddViewer(id, Context.ConnectionId);
+        await Groups.AddToGroupAsync(Context.ConnectionId, HubGroups.Live(id));
+    }
 
     [Authorize(Policy = AuthDefaults.SuperAdminPolicy)]
-    public Task StopWatchLive(string liveSessionId) => Guid.TryParse(liveSessionId, out var id)
-        ? Groups.RemoveFromGroupAsync(Context.ConnectionId, HubGroups.Live(id))
-        : Task.CompletedTask;
+    public async Task StopWatchLive(string liveSessionId)
+    {
+        if (!Guid.TryParse(liveSessionId, out var id)) return;
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, HubGroups.Live(id));
+        if (liveSessions.RemoveViewer(id, Context.ConnectionId) == 0)
+            await liveView.StopAsync(id, CancellationToken.None);
+    }
 }
 
 /// <summary>Publishes application notifications through SignalR.</summary>

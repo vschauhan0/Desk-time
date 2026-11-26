@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NISS.Application.Abstractions;
+using NISS.Application.Common;
 using NISS.Application.Options;
 using NISS.Application.Screenshots;
 using NISS.Domain.Entities;
@@ -24,6 +25,10 @@ internal sealed class FileScreenshotStore(
         var existing = await db.Screenshots
             .FirstOrDefaultAsync(s => s.DeviceId == input.DeviceId && s.FrameId == input.FrameId, ct);
         if (existing is not null) return existing;
+
+        var minFreeMb = options.Value.MinFreeDiskMb;
+        if (minFreeMb > 0 && !ScreenshotDiskGuard.HasSpace(FreeBytes(Root), minFreeMb))
+            throw new AppException(507, "Insufficient storage", "Screenshot storage is low on disk; capture paused.");
 
         var day = input.CapturedAtUtc.UtcDateTime.ToString("yyyy-MM-dd");
         var rel = Path.Combine(Sanitize(input.DeviceCode), day, $"{input.CapturedAtUtc.UtcTicks}-{input.Monitor}.jpg");
@@ -75,5 +80,11 @@ internal sealed class FileScreenshotStore(
     {
         var cleaned = string.Concat(s.Split(Path.GetInvalidFileNameChars()));
         return string.IsNullOrEmpty(cleaned) ? "unknown" : cleaned;
+    }
+
+    private static long FreeBytes(string root)
+    {
+        try { return new DriveInfo(Path.GetPathRoot(Path.GetFullPath(root)) ?? root).AvailableFreeSpace; }
+        catch { return long.MaxValue; } // can't determine (e.g. UNC): don't block capture
     }
 }

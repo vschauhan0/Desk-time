@@ -22,8 +22,7 @@ public sealed class LiveIndicatorOverlay(Func<int, MonitorInfo?> monitorResolver
 {
     private const string Text = "●  Screen being viewed by administrator";
     private readonly object _gate = new();
-    private Thread? _thread;
-    private IntPtr _hwnd;
+    private CancellationTokenSource? _windowCts;
 
     public bool Visible { get; private set; }
     public int Monitor { get; private set; } = -1;
@@ -49,27 +48,24 @@ public sealed class LiveIndicatorOverlay(Func<int, MonitorInfo?> monitorResolver
     {
         Visible = false;
         Monitor = -1;
-        if (!renderWindow) return;
-        try
-        {
-            if (_hwnd != IntPtr.Zero) NativeMethods.PostMessageW(_hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-        }
-        catch { /* best effort */ }
-        _hwnd = IntPtr.Zero;
-        _thread = null;
+        // Cancelling makes the pump thread destroy its window and exit, even if it has not finished creating it yet
+        // (no lingering indicator, no leaked thread).
+        try { _windowCts?.Cancel(); } catch { /* best effort */ }
+        _windowCts = null;
     }
 
     private void StartWindow(int monitor)
     {
         var bounds = monitorResolver(monitor);
         if (bounds is null) return;
-        var thread = new Thread(() => RunWindow(bounds)) { IsBackground = true, Name = "niss-live-indicator" };
+        var cts = new CancellationTokenSource();
+        _windowCts = cts;
+        var thread = new Thread(() => RunWindow(bounds, cts.Token)) { IsBackground = true, Name = "niss-live-indicator" };
         thread.SetApartmentState(ApartmentState.STA);
-        _thread = thread;
         thread.Start();
     }
 
-    private void RunWindow(MonitorInfo m)
+    private void RunWindow(MonitorInfo m, CancellationToken ct)
     {
         const int w = 360, h = 30;
         var x = m.X + (m.Width - w) / 2;
@@ -86,14 +82,18 @@ public sealed class LiveIndicatorOverlay(Func<int, MonitorInfo?> monitorResolver
             NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 220, NativeMethods.LWA_ALPHA);
             NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
                 NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-            _hwnd = hwnd;
         }
         catch { return; }
 
-        while (NativeMethods.GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
+        // Pump messages while the session is live; a cancellation (Hide/Stop/Switch) ends the loop and destroys the window.
+        while (!ct.IsCancellationRequested)
         {
-            NativeMethods.TranslateMessage(ref msg);
-            NativeMethods.DispatchMessageW(ref msg);
+            while (NativeMethods.PeekMessageW(out var msg, IntPtr.Zero, 0, 0, NativeMethods.PM_REMOVE))
+            {
+                NativeMethods.TranslateMessage(ref msg);
+                NativeMethods.DispatchMessageW(ref msg);
+            }
+            Thread.Sleep(30);
         }
         try { NativeMethods.DestroyWindow(hwnd); } catch { /* ignore */ }
     }

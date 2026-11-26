@@ -2,6 +2,13 @@ using NISS.Domain.Entities;
 
 namespace NISS.Application.Screenshots;
 
+/// <summary>Disk-space guard for the screenshot store: refuse new captures before the volume can fill and wedge the DB.</summary>
+public static class ScreenshotDiskGuard
+{
+    /// <summary>True when capture may proceed: the guard is off (<paramref name="minFreeMb"/> &lt;= 0) or free space is at/above it.</summary>
+    public static bool HasSpace(long freeBytes, int minFreeMb) => minFreeMb <= 0 || freeBytes >= (long)minFreeMb * 1024 * 1024;
+}
+
 /// <summary>Everything needed to store one screenshot, independent of the agent pipe/transport types.</summary>
 public sealed record ScreenshotInput(
     Guid DeviceId,

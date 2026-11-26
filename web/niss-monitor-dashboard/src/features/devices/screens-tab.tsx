@@ -57,21 +57,24 @@ function LiveView({ deviceId, displayCount }: { deviceId: string; displayCount: 
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
+  const sessionRef = useRef<string | null>(null);
 
   const stop = useCallback(() => {
     stopRef.current?.();
     stopRef.current = null;
-    const id = sessionId;
+    const id = sessionRef.current;
+    sessionRef.current = null;
     setSessionId(null);
     setFrame(null);
     if (id) api.stopLiveView(deviceId, id).catch(() => undefined);
-  }, [deviceId, sessionId]);
+  }, [deviceId]);
 
   const start = useCallback(async () => {
     setStarting(true);
     setError(null);
     try {
       const session = await api.startLiveView(deviceId, monitor);
+      sessionRef.current = session.liveSessionId;
       setSessionId(session.liveSessionId);
       stopRef.current = watchLive(session.liveSessionId, (f) => {
         setMonitor(f.monitor);
@@ -84,8 +87,21 @@ function LiveView({ deviceId, displayCount }: { deviceId: string; displayCount: 
     }
   }, [deviceId, monitor, watchLive]);
 
-  // Stop the session when the pane unmounts (tab change / navigation).
-  useEffect(() => () => stopRef.current?.(), []);
+  // Stop the session when the pane unmounts (tab change / navigation) or the page is hidden. A hard crash / tab close
+  // is caught server-side: the SignalR connection drops and the hub's OnDisconnected ends the session.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") stop();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      stopRef.current?.();
+      const id = sessionRef.current;
+      sessionRef.current = null;
+      if (id) api.stopLiveView(deviceId, id).catch(() => undefined);
+    };
+  }, [deviceId, stop]);
 
   const switchMonitor = (m: number) => {
     setMonitor(m);

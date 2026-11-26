@@ -95,6 +95,13 @@ public sealed class ScreenPipeServer(
             reason = $"unexpected client image {Path.GetFileName(path)}";
             return false;
         }
+        // Full installed path, not just the filename, so a renamed copy elsewhere cannot impersonate the session agent.
+        var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, AgentConstants.SessionExeName));
+        if (!string.Equals(Path.GetFullPath(path), expected, StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "client is not the installed session agent";
+            return false;
+        }
         return true;
     }
 

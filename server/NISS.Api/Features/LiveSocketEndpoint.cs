@@ -15,14 +15,14 @@ public static class LiveSocketEndpoint
 
     public static void MapLiveSocket(this RouteGroupBuilder api)
     {
-        api.MapGet("/agent/live-socket", async (HttpContext ctx, ClaimsPrincipal user, ILiveRelay relay, CancellationToken ct) =>
+        api.MapGet("/agent/live-socket", async (HttpContext ctx, ClaimsPrincipal user, ILiveRelay relay, LiveSessionRegistry sessions, CancellationToken ct) =>
             {
                 if (!ctx.WebSockets.IsWebSocketRequest) return Results.BadRequest("WebSocket required.");
                 var deviceId = user.GetDeviceId();
                 using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                 var channel = new WebSocketAgentChannel(deviceId, ws);
                 relay.RegisterAgent(channel);
-                try { await ReceiveFramesAsync(ws, relay, ct); }
+                try { await ReceiveFramesAsync(ws, relay, sessions, deviceId, ct); }
                 catch (OperationCanceledException) { }
                 catch (WebSocketException) { }
                 finally { relay.UnregisterAgent(channel); }
@@ -31,7 +31,7 @@ public static class LiveSocketEndpoint
             .RequireAuthorization(AuthDefaults.DevicePolicy);
     }
 
-    private static async Task ReceiveFramesAsync(WebSocket ws, ILiveRelay relay, CancellationToken ct)
+    private static async Task ReceiveFramesAsync(WebSocket ws, ILiveRelay relay, LiveSessionRegistry sessions, Guid deviceId, CancellationToken ct)
     {
         var buffer = new byte[256 * 1024];
         using var ms = new MemoryStream();
@@ -54,9 +54,13 @@ public static class LiveSocketEndpoint
             if (result.MessageType != WebSocketMessageType.Binary || ms.Length < 20) continue;
             var frame = ms.ToArray();
             var liveSessionId = new Guid(frame.AsSpan(0, 16));
+            // Only relay frames for a session this very device owns: a device credential cannot inject into another
+            // device's live view by tagging frames with its session id.
+            if (!sessions.Owns(liveSessionId, deviceId)) continue;
             var monitor = BinaryPrimitives.ReadInt32BigEndian(frame.AsSpan(16, 4));
             var jpeg = frame[20..];
-            await relay.PushFrameAsync(liveSessionId, monitor, jpeg, ct);
+            // Fire-and-forget: a slow watcher must not throttle frame intake from the agent (the relay drops while busy).
+            _ = relay.PushFrameAsync(liveSessionId, monitor, jpeg, ct);
         }
     }
 

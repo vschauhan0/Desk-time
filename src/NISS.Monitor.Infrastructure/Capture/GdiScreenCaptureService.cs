@@ -44,6 +44,16 @@ public sealed class GdiScreenCaptureService : IScreenCaptureService
     public Task<ScreenCaptureFrame?> CaptureMonitorAsync(int monitorIndex, int maxWidth, int quality, CancellationToken cancellationToken)
     {
         var monitors = EnumerateMonitors();
+        // -1 = the whole virtual desktop (used for periodic stills so every monitor is in the record).
+        if (monitorIndex == -1)
+        {
+            if (monitors.Count == 0) return Task.FromResult<ScreenCaptureFrame?>(null);
+            var left = monitors.Min(m => m.X);
+            var top = monitors.Min(m => m.Y);
+            var right = monitors.Max(m => m.X + m.Width);
+            var bottom = monitors.Max(m => m.Y + m.Height);
+            return Task.FromResult(Capture(new MonitorInfo(-1, left, top, right - left, bottom - top, false), maxWidth, quality));
+        }
         if (monitorIndex < 0 || monitorIndex >= monitors.Count) return Task.FromResult<ScreenCaptureFrame?>(null);
         return Task.FromResult(Capture(monitors[monitorIndex], maxWidth, quality));
     }

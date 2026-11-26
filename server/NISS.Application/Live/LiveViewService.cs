@@ -13,20 +13,85 @@ namespace NISS.Application.Live;
 /// <summary>An in-flight live-view session.</summary>
 public sealed record LiveSessionInfo(Guid Id, Guid DeviceId, string DeviceCode, int Monitor, DateTimeOffset StartedAt);
 
-/// <summary>Singleton registry of active live-view sessions (shared across requests and the auto-stop timer).</summary>
+/// <summary>
+/// Singleton registry of active live-view sessions, shared across requests, the SignalR hub, the frame socket and the
+/// auto-stop timer. Tracks one session per device (concurrent watchers share it) and who is watching each session so a
+/// session can be torn down when its last viewer leaves.
+/// </summary>
 public sealed class LiveSessionRegistry
 {
-    private readonly ConcurrentDictionary<Guid, LiveSessionInfo> _sessions = new();
+    private readonly object _gate = new();
+    private readonly Dictionary<Guid, LiveSessionInfo> _byId = new();
+    private readonly Dictionary<Guid, Guid> _deviceToSession = new();
+    private readonly Dictionary<Guid, HashSet<string>> _viewers = new();
 
-    public void Add(LiveSessionInfo session) => _sessions[session.Id] = session;
-    public LiveSessionInfo? Remove(Guid id) => _sessions.TryRemove(id, out var s) ? s : null;
+    public void Add(LiveSessionInfo session)
+    {
+        lock (_gate)
+        {
+            _byId[session.Id] = session;
+            _deviceToSession[session.DeviceId] = session.Id;
+            _viewers.TryAdd(session.Id, new HashSet<string>());
+        }
+    }
+
+    /// <summary>The device's current active session, if any (so a second watcher shares it rather than starting a new one).</summary>
+    public LiveSessionInfo? GetByDevice(Guid deviceId)
+    {
+        lock (_gate)
+            return _deviceToSession.TryGetValue(deviceId, out var id) && _byId.TryGetValue(id, out var s) ? s : null;
+    }
+
+    /// <summary>True when <paramref name="sessionId"/> exists and belongs to <paramref name="deviceId"/> (frame-injection guard).</summary>
+    public bool Owns(Guid sessionId, Guid deviceId)
+    {
+        lock (_gate)
+            return _byId.TryGetValue(sessionId, out var s) && s.DeviceId == deviceId;
+    }
+
+    public LiveSessionInfo? Remove(Guid id)
+    {
+        lock (_gate)
+        {
+            if (!_byId.Remove(id, out var s)) return null;
+            if (_deviceToSession.TryGetValue(s.DeviceId, out var sid) && sid == id) _deviceToSession.Remove(s.DeviceId);
+            _viewers.Remove(id);
+            return s;
+        }
+    }
 
     public LiveSessionInfo? Update(Guid id, int monitor)
     {
-        if (!_sessions.TryGetValue(id, out var s)) return null;
-        var updated = s with { Monitor = monitor };
-        _sessions[id] = updated;
-        return updated;
+        lock (_gate)
+        {
+            if (!_byId.TryGetValue(id, out var s)) return null;
+            var updated = s with { Monitor = monitor };
+            _byId[id] = updated;
+            return updated;
+        }
+    }
+
+    public void AddViewer(Guid sessionId, string connectionId)
+    {
+        lock (_gate)
+        {
+            if (!_viewers.TryGetValue(sessionId, out var set)) { set = new HashSet<string>(); _viewers[sessionId] = set; }
+            set.Add(connectionId);
+        }
+    }
+
+    /// <summary>Removes a viewer; returns the number of viewers that remain for the session.</summary>
+    public int RemoveViewer(Guid sessionId, string connectionId)
+    {
+        lock (_gate)
+            return _viewers.TryGetValue(sessionId, out var set) && set.Remove(connectionId) ? set.Count : (_viewers.TryGetValue(sessionId, out var s2) ? s2.Count : 0);
+    }
+
+    /// <summary>Sessions this connection is currently watching (for teardown on disconnect).</summary>
+    public IReadOnlyList<Guid> SessionsWatchedBy(string connectionId)
+    {
+        lock (_gate)
+            return _viewers.Where(kv => kv.Value.Contains(connectionId)).Select(kv => kv.Key).ToList();
     }
 }
 
@@ -51,6 +116,11 @@ internal sealed class LiveViewService(
     {
         var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceCode == deviceCode, ct)
             ?? throw new NotFoundException("Device not found.");
+
+        // Concurrent watchers share one session per device: return the active one rather than starting a second stream.
+        var active = registry.GetByDevice(device.Id);
+        if (active is not null)
+            return new LiveViewSessionDto(active.Id, device.DeviceCode, $"live:{active.Id}", active.Monitor, active.StartedAt);
 
         var dept = device.EmployeeId is { } id
             ? await db.Employees.Where(e => e.Id == id).Select(e => e.Department).FirstOrDefaultAsync(ct)

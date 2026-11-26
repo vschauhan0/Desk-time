@@ -38,7 +38,8 @@ public sealed class ScreenCaptureWorker(
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         _uploader = new ScreenshotUploader(new ServerScreenshotUpload(api), capacity: 32);
-        await using var screenServer = new ScreenPipeServer(AgentConstants.ScreenPipeName, requireTrustedClientPath: false, OnFrameAsync);
+        // Require the connecting client to be the installed session exe so a local user cannot inject fake screenshots.
+        await using var screenServer = new ScreenPipeServer(AgentConstants.ScreenPipeName, requireTrustedClientPath: true, OnFrameAsync);
 
         var tasks = new[]
         {

@@ -27,7 +27,8 @@ public sealed class ScreenCaptureLoop(
         var now = presence();
         if (now.Locked || now.Idle) return false;
 
-        var frame = await capture.CaptureMonitorAsync(0, p.MaxWidth, p.Quality, ct).ConfigureAwait(false);
+        // -1 = the whole virtual desktop, so periodic stills record every monitor.
+        var frame = await capture.CaptureMonitorAsync(-1, p.MaxWidth, p.Quality, ct).ConfigureAwait(false);
         if (frame is null) return false;
 
         var header = new ScreenFrameHeader(ScreenPipeKind.Periodic, frame.MonitorIndex, frame.Width, frame.Height,

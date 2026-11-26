@@ -66,12 +66,13 @@ public sealed class ScreenControlPipeServer(Func<ScreenCommand, CancellationToke
 
     private static NamedPipeServerStream Create()
     {
+        // Control carries policy + live-session ids: only the service (LocalSystem) and admins may connect, never a
+        // standard user — so an employee cannot feed SetPolicy(disabled), forge a live command, or read session ids.
         var security = new PipeSecurity();
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
-        security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null), PipeAccessRights.ReadWrite, AccessControlType.Allow));
         return NamedPipeServerStreamAcl.Create(ScreenControlPipe.PipeName, PipeDirection.In, 4, PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous, 0, 64 * 1024, security);
+            PipeOptions.Asynchronous | PipeOptions.FirstPipeInstance, 0, 64 * 1024, security);
     }
 
     public async ValueTask DisposeAsync()

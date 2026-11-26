@@ -36,4 +36,17 @@ public class ScreenCaptureTests
     {
         Assert.Null(await Service.CaptureMonitorAsync(999, 640, 50, default));
     }
+
+    [Fact]
+    public async Task CaptureMonitorAsync_minus_one_captures_the_whole_virtual_desktop()
+    {
+        if (Service.EnumerateMonitors().Count == 0) return; // headless: nothing to capture
+
+        var frame = await Service.CaptureMonitorAsync(-1, maxWidth: 800, quality: 50, default);
+
+        Assert.NotNull(frame);
+        Assert.Equal(-1, frame!.MonitorIndex);
+        Assert.True(frame.Jpeg.Length > 0);
+        Assert.True(frame.Width <= 800);
+    }
 }
