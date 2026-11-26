@@ -104,6 +104,32 @@ public sealed class ServerApiClient
     public Task<ApiResult<HealthResponse>> HealthAsync(CancellationToken ct)
         => SendAsync<HealthResponse>(HttpMethod.Get, Url("/api/v1/health"), null, false, ct);
 
+    /// <summary>Posts one periodic screenshot (raw JPEG body + metadata query). Returns whether the server accepted it.</summary>
+    public async Task<bool> PostScreenshotAsync(ScreenFrameHeader header, string frameId, byte[] jpeg, CancellationToken ct)
+    {
+        var id = _identity.Current;
+        if (id is null) return false;
+        var captured = new DateTimeOffset(header.CapturedAtUtcTicks, TimeSpan.Zero);
+        var url = Url("/api/v1/devices/screenshots")
+            + $"?frameId={Uri.EscapeDataString(frameId)}&monitor={header.Monitor}&width={header.Width}&height={header.Height}"
+            + $"&capturedAtUtc={Uri.EscapeDataString(captured.ToString("o"))}";
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("NissDevice", $"{id.DeviceId}:{id.DeviceSecret}");
+            req.Content = new ByteArrayContent(jpeg);
+            req.Content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, _settings.Server.RequestTimeoutSeconds)));
+            using var resp = await _http.SendAsync(req, timeout.Token).ConfigureAwait(false);
+            return resp.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private string Url(string path) => BaseUrl + path;
 
     private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string url, object? body, bool authenticated, CancellationToken ct)
