@@ -25,9 +25,11 @@ import type {
   PolicyDto,
   PolicyUpsert,
   ProblemDetails,
+  LiveViewSessionDto,
   ProcessSessionDto,
   ReportResult,
   RetentionSettings,
+  ScreenshotDto,
   SecurityEventDto,
   SystemMetricDto,
   TimelineItem,
@@ -366,6 +368,18 @@ export const api = {
   revokeDevice: (deviceId: string) => request<void>(`/devices/${enc(deviceId)}/revoke`, { method: "POST" }),
   reEnrollDevice: (deviceId: string) =>
     request<EnrollmentTokenDto>(`/devices/${enc(deviceId)}/re-enroll`, { method: "POST" }),
+
+  // screenshots + live view (SUPERADMIN)
+  screenshots: (deviceId: string, query?: Query) =>
+    request<Paged<ScreenshotDto>>(`/devices/${enc(deviceId)}/screenshots`, { query }),
+  screenshotBlob: async (deviceId: string, id: string): Promise<Blob> =>
+    (await requestRaw(`/devices/${enc(deviceId)}/screenshots/${enc(id)}/image`)).blob(),
+  startLiveView: (deviceId: string, monitor: number) =>
+    request<LiveViewSessionDto>(`/devices/${enc(deviceId)}/live-view/start`, { method: "POST", query: { monitor } }),
+  stopLiveView: (deviceId: string, liveSessionId: string) =>
+    request<void>(`/devices/${enc(deviceId)}/live-view/stop`, { method: "POST", query: { liveSessionId } }),
+  switchLiveView: (deviceId: string, liveSessionId: string, monitor: number) =>
+    request<void>(`/devices/${enc(deviceId)}/live-view/switch`, { method: "POST", query: { liveSessionId, monitor } }),
 
   // cross-device
   applications: (query?: Query) => request<ApplicationActivityResponse>("/applications", { query }),

@@ -264,6 +264,31 @@ export interface SystemMetricDto {
   uptimeSeconds: number;
 }
 
+export interface ScreenshotDto {
+  id: string;
+  capturedAtUtc: IsoString;
+  monitor: number;
+  width: number;
+  height: number;
+  byteSize: number;
+  sessionUser: string | null;
+  employeeId: string | null;
+}
+
+export interface LiveViewSessionDto {
+  liveSessionId: string;
+  deviceId: string;
+  hubGroup: string;
+  monitor: number;
+  startedAtUtc: IsoString;
+}
+
+export interface ScreenFrameMessage {
+  liveSessionId: string;
+  monitor: number;
+  jpegBase64: string;
+}
+
 export interface UsbEventDto {
   id: string;
   deviceId: string;
@@ -519,6 +544,7 @@ export const HubMethods = {
   EventIngested: "EventIngested",
   DeviceStatusChanged: "DeviceStatusChanged",
   SecurityEventRaised: "SecurityEventRaised",
+  ScreenFrame: "ScreenFrame",
   Route: "/hubs/monitor",
 } as const;
 

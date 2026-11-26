@@ -23,12 +23,14 @@ import { filtersToQuery } from "@/lib/filters";
 import { formatDateTime, formatGigabytes, formatMegabytes, humanize } from "@/lib/format";
 import { deviceStatusTone } from "@/lib/status";
 import type { DeviceDetail as DeviceDetailDto, EventDto, Paged, SystemMetricDto, TimelineItem } from "@/lib/types";
+import { useAuth } from "@/providers/auth-provider";
 import { useMonitorHub } from "@/providers/signalr-provider";
 import { useLiveStore } from "@/store/live-store";
 import { DeviceActions } from "./device-actions";
 import { DiagnosticsPanel } from "./diagnostics-panel";
+import { ScreensTab } from "./screens-tab";
 
-type TabKey = "overview" | "activity" | "applications" | "processes" | "metrics" | "timeline" | "diagnostics";
+type TabKey = "overview" | "activity" | "applications" | "processes" | "metrics" | "timeline" | "diagnostics" | "screens";
 
 const TABS: TabDef<TabKey>[] = [
   { key: "overview", label: "Overview" },
@@ -40,9 +42,8 @@ const TABS: TabDef<TabKey>[] = [
   { key: "diagnostics", label: "Diagnostics" },
 ];
 
-function isTab(v: string | null): v is TabKey {
-  return TABS.some((t) => t.key === v);
-}
+// Screens (screenshots + live view) is SUPERADMIN-only and appended to the tab bar only for those users.
+const SCREENS_TAB: TabDef<TabKey> = { key: "screens", label: "Screens" };
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -210,8 +211,10 @@ export function DeviceDetail() {
   const deviceId = decodeURIComponent(params.deviceId);
   const router = useRouter();
   const search = useSearchParams();
+  const { isSuperAdmin } = useAuth();
+  const tabs = useMemo(() => (isSuperAdmin ? [...TABS, SCREENS_TAB] : TABS), [isSuperAdmin]);
   const tabParam = search.get("tab");
-  const tab: TabKey = isTab(tabParam) ? tabParam : "overview";
+  const tab: TabKey = tabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : "overview";
   const { data, error, loading, mutate } = useApi<DeviceDetailDto>(`/devices/${encodeURIComponent(deviceId)}`, undefined, { refreshInterval: 30_000 });
 
   const s = data?.summary;
@@ -236,7 +239,7 @@ export function DeviceDetail() {
           </>
         }
       />
-      <Tabs tabs={TABS} value={tab} onChange={(k) => router.replace(k === "overview" ? `/devices/${encodeURIComponent(deviceId)}` : `/devices/${encodeURIComponent(deviceId)}?tab=${k}`)} />
+      <Tabs tabs={tabs} value={tab} onChange={(k) => router.replace(k === "overview" ? `/devices/${encodeURIComponent(deviceId)}` : `/devices/${encodeURIComponent(deviceId)}?tab=${k}`)} />
       <DataState loading={loading} error={error} onRetry={() => void mutate()}>
         {data && (
           <div role="tabpanel">
@@ -247,6 +250,7 @@ export function DeviceDetail() {
             {tab === "metrics" && <MetricsTab deviceId={deviceId} />}
             {tab === "timeline" && <TimelineTab deviceId={deviceId} />}
             {tab === "diagnostics" && <DiagnosticsPanel deviceId={deviceId} />}
+            {tab === "screens" && isSuperAdmin && <ScreensTab deviceId={deviceId} />}
           </div>
         )}
       </DataState>

@@ -6,7 +6,7 @@ import { useSWRConfig } from "swr";
 import { getValidAccessToken } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/config";
 import { HubMethods } from "@/lib/types";
-import type { DeviceStatusChange, EventDto, LiveDeviceCard, SecurityEventDto } from "@/lib/types";
+import type { DeviceStatusChange, EventDto, LiveDeviceCard, ScreenFrameMessage, SecurityEventDto } from "@/lib/types";
 import { useLiveStore } from "@/store/live-store";
 import { useAuth } from "./auth-provider";
 
@@ -15,6 +15,8 @@ interface MonitorHub {
   subscribeFeed: () => () => void;
   /** Join group device:{id}. Returns the unsubscribe function. Ref-counted. */
   subscribeDevice: (deviceId: string) => () => void;
+  /** Watch a live-view session's frames. Returns a stop function that leaves the group and removes the handler. */
+  watchLive: (liveSessionId: string, onFrame: (frame: ScreenFrameMessage) => void) => () => void;
 }
 
 const HubContext = createContext<MonitorHub | null>(null);
@@ -163,7 +165,26 @@ export function SignalRProvider({ children }: { children: ReactNode }) {
     [invokeSafe],
   );
 
-  const value = useMemo<MonitorHub>(() => ({ subscribeFeed, subscribeDevice }), [subscribeFeed, subscribeDevice]);
+  const watchLive = useCallback(
+    (liveSessionId: string, onFrame: (frame: ScreenFrameMessage) => void) => {
+      const conn = connRef.current;
+      const handler = (frame: ScreenFrameMessage) => {
+        if (frame.liveSessionId === liveSessionId) onFrame(frame);
+      };
+      conn?.on(HubMethods.ScreenFrame, handler);
+      invokeSafe("WatchLive", liveSessionId);
+      return () => {
+        invokeSafe("StopWatchLive", liveSessionId);
+        conn?.off(HubMethods.ScreenFrame, handler);
+      };
+    },
+    [invokeSafe],
+  );
+
+  const value = useMemo<MonitorHub>(
+    () => ({ subscribeFeed, subscribeDevice, watchLive }),
+    [subscribeFeed, subscribeDevice, watchLive],
+  );
   return <HubContext.Provider value={value}>{children}</HubContext.Provider>;
 }
 
