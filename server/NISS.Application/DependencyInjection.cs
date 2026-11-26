@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeResolver, EmployeeResolver>();
         services.AddScoped<ILiveStateWriter, LiveStateWriter>();
         services.AddScoped<IEventIngestionService, EventIngestionService>();
+        services.AddScoped<Screenshots.IScreenshotIngestionService, Screenshots.ScreenshotIngestionService>();
         foreach (var projector in new[]
         {
             typeof(ProcessProjector), typeof(ApplicationSessionProjector), typeof(UserSessionProjector), typeof(IdleSessionProjector),
