@@ -35,6 +35,25 @@ public sealed class MonitoringOptions
 }
 
 /// <summary>Retention defaults (<c>Retention</c> section), in days. 0 = keep forever.</summary>
+/// <summary>Where periodic screenshots are stored on disk and how long they are kept.</summary>
+public sealed class ScreenshotStorageOptions
+{
+    public const string Section = "ScreenshotStorage";
+    /// <summary>Root directory for screenshot files. Empty = a temp directory (dev/test).</summary>
+    public string Root { get; set; } = "";
+    public int RetentionDays { get; set; } = 14;
+    /// <summary>Stop capturing/accepting screenshots when the volume has less free space than this (MB). 0 = no guard.</summary>
+    public int MinFreeDiskMb { get; set; } = 2048;
+}
+
+/// <summary>Live screen view limits.</summary>
+public sealed class ScreenLiveOptions
+{
+    public const string Section = "ScreenLive";
+    public int MaxSessionMinutes { get; set; } = 30;
+    public int MaxFps { get; set; } = 8;
+}
+
 public sealed class RetentionOptions
 {
     public const string Section = "Retention";

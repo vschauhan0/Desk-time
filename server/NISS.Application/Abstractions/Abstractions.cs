@@ -32,6 +32,7 @@ public interface IAppDbContext
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<Domain.Entities.AppCategoryRule> AppCategoryRules { get; }
     DbSet<ServerSetting> ServerSettings { get; }
+    DbSet<Screenshot> Screenshots { get; }
 
     DatabaseFacade Database { get; }
     ChangeTracker ChangeTracker { get; }

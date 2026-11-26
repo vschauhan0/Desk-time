@@ -45,6 +45,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["RateLimits:EnrollPerMinute"] = "1000",
             ["RateLimits:IngestPerMinute"] = "100000",
             ["Workers:Enabled"] = "false",
+            ["ScreenshotStorage:Root"] = Path.Combine(Path.GetTempPath(), "niss-shots-test"),
         };
         if (overrides is not null) foreach (var (key, value) in overrides) _settings[key] = value;
     }

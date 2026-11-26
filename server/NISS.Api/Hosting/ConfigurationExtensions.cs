@@ -34,5 +34,7 @@ public static class ConfigurationExtensions
         services.AddOptions<RetentionOptions>().Bind(configuration.GetSection(RetentionOptions.Section));
         services.AddOptions<RateLimitOptions>().Bind(configuration.GetSection(RateLimitOptions.Section));
         services.AddOptions<WorkerOptions>().Bind(configuration.GetSection(WorkerOptions.Section));
+        services.AddOptions<ScreenshotStorageOptions>().Bind(configuration.GetSection(ScreenshotStorageOptions.Section));
+        services.AddOptions<ScreenLiveOptions>().Bind(configuration.GetSection(ScreenLiveOptions.Section));
     }
 }

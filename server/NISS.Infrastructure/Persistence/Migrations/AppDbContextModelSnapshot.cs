@@ -1174,6 +1174,81 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("NISS.Domain.Entities.Screenshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("integer")
+                        .HasColumnName("byte_size");
+
+                    b.Property<DateTimeOffset>("CapturedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("captured_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("FrameId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("frame_id");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<int>("MonitorIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("monitor_index");
+
+                    b.Property<string>("RelPath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("rel_path");
+
+                    b.Property<string>("SessionUser")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("session_user");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id")
+                        .HasName("pk_screenshots");
+
+                    b.HasIndex("CapturedAtUtc")
+                        .HasDatabaseName("ix_screenshots_captured_at_utc");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_screenshots_employee_id");
+
+                    b.HasIndex("DeviceId", "CapturedAtUtc")
+                        .HasDatabaseName("ix_screenshots_device_id_captured_at_utc");
+
+                    b.HasIndex("DeviceId", "FrameId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_screenshots_device_id_frame_id");
+
+                    b.ToTable("screenshots", (string)null);
+                });
+
             modelBuilder.Entity("NISS.Domain.Entities.SecurityEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1559,6 +1634,16 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_refresh_tokens_admin_users_admin_user_id");
+                });
+
+            modelBuilder.Entity("NISS.Domain.Entities.Screenshot", b =>
+                {
+                    b.HasOne("NISS.Domain.Entities.Device", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_screenshots_devices_device_id");
                 });
 
             modelBuilder.Entity("NISS.Domain.Entities.SecurityEvent", b =>

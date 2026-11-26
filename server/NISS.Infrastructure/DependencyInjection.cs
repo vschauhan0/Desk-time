@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IIngestionStore, IngestionStore>();
         services.AddScoped<IDeviceNumberSequence, DeviceNumberSequence>();
         services.AddScoped<IRetentionStore, RetentionStore>();
+        services.AddScoped<Application.Screenshots.IScreenshotStore, Storage.FileScreenshotStore>();
 
         services.AddSingleton<IPasswordService, PasswordService>();
         services.AddSingleton<ISecretHasher, SecretHasher>();
