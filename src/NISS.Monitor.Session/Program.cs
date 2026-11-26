@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using NISS.Monitor.Core;
+using NISS.Monitor.Infrastructure.Capture;
 using NISS.Monitor.Infrastructure.Identity;
 using NISS.Monitor.Infrastructure.Interactive;
 using NISS.Monitor.Infrastructure.Ipc;
+using NISS.Monitor.Infrastructure.Live;
 
 namespace NISS.Monitor.Session;
 
@@ -25,6 +27,11 @@ internal static class Program
         var pipe = new SessionPipeClient(user, AgentVersion.Current);
         var runtime = new SessionRuntime(new Win32ForegroundMonitor(), new Win32IdleMonitor(), window, pipe, TimeProvider.System, log, sessionId, user);
 
+        // Screen monitoring runs alongside the runtime; it stays inert until the server policy enables capture and
+        // never takes the session helper down on its own (every path is best-effort).
+        var screen = new SessionScreenCapture(new GdiScreenCaptureService(), new Win32IdleMonitor(), () => window.IsLocked, m => log.Info("[screen] " + m));
+        var screenTask = screen.RunAsync(cts.Token);
+
         try
         {
             runtime.RunAsync(cts.Token).GetAwaiter().GetResult();
@@ -34,6 +41,11 @@ internal static class Program
         {
             log.Error("Fatal: " + ex);
             return 1; // the service relaunches us with back-off
+        }
+        finally
+        {
+            try { screenTask.GetAwaiter().GetResult(); } catch { /* ignore */ }
+            screen.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 }

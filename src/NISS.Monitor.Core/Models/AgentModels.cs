@@ -99,6 +99,7 @@ public static class AgentConstants
     public const string ServiceDescription = "Authorized NISS endpoint telemetry service for managed organizational devices.";
     public const string EventLogSource = "NISS Monitor Service";
     public const string PipeName = "NISSMonitor.Session";
+    public const string ScreenPipeName = "NISSMonitor.Screen";
     public const string SessionExeName = "Windows.RunSession.exe";
     public const string ServiceExeName = "Windows.RunService.exe";
     public const string CliExeName = "NISSAgent.exe";

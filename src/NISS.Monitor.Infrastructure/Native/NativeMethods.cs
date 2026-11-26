@@ -120,6 +120,25 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    // ---- Live-view indicator overlay (layered, click-through, topmost "STATIC" window).
+    // CreateWindowExW/DestroyWindow/GetMessageW/DispatchMessageW/PostMessageW/GetModuleHandleW/MSG already exist above. ----
+    public const uint WS_POPUP = 0x80000000;
+    public const uint WS_VISIBLE = 0x10000000;
+    public const uint SS_CENTER = 0x00000001;
+    public const uint WS_EX_LAYERED = 0x00080000;
+    public const uint WS_EX_TRANSPARENT = 0x00000020;
+    public const uint WS_EX_TOPMOST = 0x00000008;
+    public const uint WS_EX_NOACTIVATE = 0x08000000;
+    public const uint LWA_ALPHA = 0x00000002;
+    public static readonly IntPtr HWND_TOPMOST = new(-1);
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOACTIVATE = 0x0010;
+
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, uint crKey, byte bAlpha, uint dwFlags);
+    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool TranslateMessage(ref MSG lpMsg);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RAWINPUTDEVICE { public ushort usUsagePage; public ushort usUsage; public uint dwFlags; public IntPtr hwndTarget; }
 

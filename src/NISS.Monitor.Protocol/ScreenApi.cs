@@ -37,3 +37,15 @@ public sealed record LiveControlMessage(
     int Monitor,
     int Fps,
     int Quality);
+
+/// <summary>Kinds of <see cref="ScreenCommand"/> the service sends down to the session helper.</summary>
+public static class ScreenCommandKind
+{
+    public const string SetPolicy = "set-policy";
+    public const string LiveStart = "live-start";
+    public const string LiveStop = "live-stop";
+    public const string LiveSwitch = "live-switch";
+}
+
+/// <summary>Service -&gt; session control over the local screen-control pipe: either an updated policy or a live command.</summary>
+public sealed record ScreenCommand(string Kind, ScreenCapturePolicy? Policy, LiveControlMessage? Live);

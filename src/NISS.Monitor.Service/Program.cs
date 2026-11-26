@@ -93,6 +93,7 @@ public static class Program
         services.AddHostedService<AgentStatusWorker>();
         services.AddHostedService<QueueMaintenanceWorker>();
         services.AddHostedService<SystemMetricsWorker>();
+        if (OperatingSystem.IsWindows()) services.AddHostedService<ScreenCaptureWorker>();
 
         AddCollector<IProcessMonitor>(services);
         AddCollector<WtsSessionMonitor>(services);
