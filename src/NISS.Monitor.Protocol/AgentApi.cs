@@ -142,6 +142,18 @@ public sealed record FileMonitoringPolicy(bool Enabled, IReadOnlyList<string> Pa
 /// <summary>Optional cursor sampling. Disabled by default; never a raw trajectory.</summary>
 public sealed record CursorSamplingPolicy(bool Enabled, int IntervalSeconds);
 
+/// <summary>
+/// Screen capture module settings. Disabled by default (the whole feature ships off).
+/// <paramref name="Enabled"/> gates periodic stored screenshots; <paramref name="LiveEnabled"/>
+/// gates on-demand live view. Quality is JPEG 1-100; MaxWidth downscales wide screens.
+/// </summary>
+public sealed record ScreenCapturePolicy(
+    bool Enabled,
+    int IntervalSeconds,
+    int Quality,
+    int MaxWidth,
+    bool LiveEnabled);
+
 /// <summary>Effective monitoring policy pushed to an agent. Every value is server-configurable.</summary>
 public sealed record AgentPolicy
 {
@@ -160,6 +172,8 @@ public sealed record AgentPolicy
     public IReadOnlyList<string> ProcessExclusions { get; init; } = [];
     public FileMonitoringPolicy FileMonitoring { get; init; } = new(false, [], []);
     public CursorSamplingPolicy CursorSampling { get; init; } = new(false, 5);
+    /// <summary>Screenshots + live view. Disabled by default; the live indicator is shown only during live view.</summary>
+    public ScreenCapturePolicy ScreenCapture { get; init; } = new(false, 60, 60, 1600, true);
     public bool UsbMonitoringEnabled { get; init; } = true;
     public int UploadBatchSize { get; init; } = 200;
     public int UploadIntervalSeconds { get; init; } = 5;
