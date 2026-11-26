@@ -57,7 +57,8 @@ public sealed class EnrollmentToken
     public byte[] TokenHash { get; set; } = [];
     public string? EmployeeCode { get; set; }
     public Guid? BoundDeviceId { get; set; }
-    public DateTimeOffset ExpiresAt { get; set; }
+    /// <summary>When the code stops working. Null = never expires (valid until used).</summary>
+    public DateTimeOffset? ExpiresAt { get; set; }
     public DateTimeOffset? UsedAt { get; set; }
     public Guid? UsedByDeviceId { get; set; }
     public string? Note { get; set; }

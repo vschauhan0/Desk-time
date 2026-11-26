@@ -184,12 +184,14 @@ internal sealed class Steps
         var cli = Path.Combine(_o.InstallDir, AgentSetup.CliExe);
         Step("Creating local SQLite queue database", () => Cli(cli, "--init"));
 
+        PromptForEnrollmentCode(cli);
+
         Step("Enrolling device with the NISS server", () =>
         {
             var enrolled = Cli(cli, "--device-id", tolerateFailure: true);
             var alreadyEnrolled = !enrolled.StartsWith("ERR:", StringComparison.Ordinal);
             if (_o.SkipEnroll || (alreadyEnrolled && string.IsNullOrWhiteSpace(_o.Token))) return alreadyEnrolled ? $"already enrolled as {enrolled}" : "skipped (--no-enroll)";
-            if (string.IsNullOrWhiteSpace(_o.Token)) return "skipped - no --token supplied; run: NISSAgent.exe --enroll --server <url> --token <token>";
+            if (string.IsNullOrWhiteSpace(_o.Token)) return "skipped - no enrollment code supplied; run: NISSAgent.exe --enroll --server <url> --token <code>";
             var args = $"--enroll --server \"{_o.Server}\" --token \"{_o.Token}\"" + (string.IsNullOrWhiteSpace(_o.Employee) ? "" : $" --employee \"{_o.Employee}\"")
                        + (string.IsNullOrWhiteSpace(_o.Thumbprint) ? "" : $" --thumbprint \"{_o.Thumbprint}\"");
             return Cli(cli, args);
@@ -290,6 +292,25 @@ internal sealed class Steps
         if (r.Ok) return r.Output.Trim();
         if (tolerateFailure) return "ERR:" + r.Output;
         throw new InvalidOperationException($"NISSAgent {args.Split(' ')[0]} failed: {r.Output}");
+    }
+
+    /// <summary>Interactive install: if no code was supplied and this PC is not yet enrolled, ask the employee for it.</summary>
+    private void PromptForEnrollmentCode(string cli)
+    {
+        if (_o.Silent || _o.SkipEnroll || !string.IsNullOrWhiteSpace(_o.Token) || Console.IsInputRedirected) return;
+        var enrolled = Cli(cli, "--device-id", tolerateFailure: true);
+        if (!enrolled.StartsWith("ERR:", StringComparison.Ordinal)) return; // already enrolled - no code needed
+
+        Console.WriteLine();
+        if (string.IsNullOrWhiteSpace(_o.Server) || _o.Server.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Write(string.IsNullOrWhiteSpace(_o.Server) ? "Server URL (https://<server>:8443): " : $"Server URL [{_o.Server}]: ");
+            var s = Console.ReadLine()?.Trim();
+            if (!string.IsNullOrWhiteSpace(s)) _o.Server = s;
+        }
+        Console.Write("Enter the enrollment code from your administrator: ");
+        _o.Token = Console.ReadLine()?.Trim();
+        Console.WriteLine();
     }
 
     private void Step(string title, Func<string> action, bool fatal = true)

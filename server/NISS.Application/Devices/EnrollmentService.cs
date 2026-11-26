@@ -37,7 +37,7 @@ internal sealed class EnrollmentService(
 
         // Atomic single-use consumption: only one caller can flip used_at from null.
         var token = await db.EnrollmentTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
-        if (token is null || token.UsedAt is not null || token.ExpiresAt <= now)
+        if (token is null || token.UsedAt is not null || (token.ExpiresAt is not null && token.ExpiresAt <= now))
         {
             log.LogWarning("Enrollment refused: token unknown, used or expired (host {Hostname})", request.Hostname);
             throw new UnauthorizedAppException("The enrollment token is invalid, expired or already used.");
@@ -142,11 +142,11 @@ internal sealed class EnrollmentService(
         var row = new EnrollmentToken
         {
             Id = Guid.NewGuid(), TokenHash = hasher.Hash(raw), EmployeeCode = string.IsNullOrWhiteSpace(request.EmployeeCode) ? null : request.EmployeeCode.Trim(),
-            BoundDeviceId = deviceId, ExpiresAt = now.AddHours(request.ExpiresInHours), Note = Text.Trunc(request.Note, 500),
+            BoundDeviceId = deviceId, ExpiresAt = request.ExpiresInHours > 0 ? now.AddHours(request.ExpiresInHours) : null, Note = Text.Trunc(request.Note, 500),
             CreatedBy = user.Username, CreatedAt = now,
         };
         db.EnrollmentTokens.Add(row);
-        audit.Record(AuditActions.EnrollmentTokenCreated, deviceCode ?? row.EmployeeCode, $"expires {row.ExpiresAt:u}");
+        audit.Record(AuditActions.EnrollmentTokenCreated, deviceCode ?? row.EmployeeCode, row.ExpiresAt is { } exp ? $"expires {exp:u}" : "never expires");
         await db.SaveChangesAsync(ct);
         return ToDto(row, raw, deviceCode, null);
     }

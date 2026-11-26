@@ -112,7 +112,7 @@ public sealed class EnrollmentTokenRequestValidator : AbstractValidator<Enrollme
 {
     public EnrollmentTokenRequestValidator()
     {
-        RuleFor(x => x.ExpiresInHours).InclusiveBetween(1, 24 * 30);
+        RuleFor(x => x.ExpiresInHours).InclusiveBetween(0, 24 * 30); // 0 = never expires
         RuleFor(x => x.EmployeeCode).MaximumLength(64);
         RuleFor(x => x.DeviceId).MaximumLength(32);
         RuleFor(x => x.Note).MaximumLength(500);

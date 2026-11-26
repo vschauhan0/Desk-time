@@ -13,7 +13,7 @@ import type { EnrollmentTokenDto } from "@/lib/types";
 
 function tokenState(t: EnrollmentTokenDto, now: number): { label: string; tone: "ok" | "neutral" | "warn" } {
   if (t.usedAtUtc) return { label: "Used", tone: "neutral" };
-  if (Date.parse(t.expiresAtUtc) < now) return { label: "Expired", tone: "warn" };
+  if (t.expiresAtUtc && Date.parse(t.expiresAtUtc) < now) return { label: "Expired", tone: "warn" };
   return { label: "Active", tone: "ok" };
 }
 
@@ -45,7 +45,7 @@ export function TokensPanel() {
                     <td>{t.deviceId ?? "any"}</td>
                     <td className="text-muted">{t.note ?? "—"}</td>
                     <td><Time value={t.createdAtUtc} /></td>
-                    <td><Time value={t.expiresAtUtc} /></td>
+                    <td>{t.expiresAtUtc ? <Time value={t.expiresAtUtc} /> : "Never"}</td>
                     <td>{t.usedByDeviceId ?? "—"}</td>
                     <td className="text-right">{!t.usedAtUtc && <Button size="sm" variant="ghost" iconOnly icon={Trash2} aria-label="Delete token" onClick={() => setDeleting(t)} />}</td>
                   </tr>

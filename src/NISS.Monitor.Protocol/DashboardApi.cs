@@ -363,7 +363,7 @@ public sealed record EnrollmentTokenDto(
     string? Token,
     string? EmployeeCode,
     string? DeviceId,
-    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
     DateTimeOffset? UsedAtUtc,
     string? UsedByDeviceId,
     string? Note,

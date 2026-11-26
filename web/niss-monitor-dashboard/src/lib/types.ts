@@ -515,7 +515,7 @@ export interface EnrollmentTokenDto {
   token: string | null;
   employeeCode: string | null;
   deviceId: string | null;
-  expiresAtUtc: IsoString;
+  expiresAtUtc: IsoString | null;
   usedAtUtc: IsoString | null;
   usedByDeviceId: string | null;
   note: string | null;

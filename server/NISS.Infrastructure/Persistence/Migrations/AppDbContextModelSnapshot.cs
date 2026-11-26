@@ -636,7 +636,7 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("employee_code");
 
-                    b.Property<DateTimeOffset>("ExpiresAt")
+                    b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
