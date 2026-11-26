@@ -59,15 +59,15 @@ function LiveView({ deviceId, displayCount }: { deviceId: string; displayCount: 
   const stopRef = useRef<(() => void) | null>(null);
   const sessionRef = useRef<string | null>(null);
 
+  // "Stop" leaves the shared session (StopWatchLive via the hub). The server ends the session only when the last
+  // watcher leaves, so one admin stopping does not cut off another who is still watching the same device.
   const stop = useCallback(() => {
     stopRef.current?.();
     stopRef.current = null;
-    const id = sessionRef.current;
     sessionRef.current = null;
     setSessionId(null);
     setFrame(null);
-    if (id) api.stopLiveView(deviceId, id).catch(() => undefined);
-  }, [deviceId]);
+  }, []);
 
   const start = useCallback(async () => {
     setStarting(true);
@@ -97,11 +97,9 @@ function LiveView({ deviceId, displayCount }: { deviceId: string; displayCount: 
     return () => {
       document.removeEventListener("visibilitychange", onHide);
       stopRef.current?.();
-      const id = sessionRef.current;
       sessionRef.current = null;
-      if (id) api.stopLiveView(deviceId, id).catch(() => undefined);
     };
-  }, [deviceId, stop]);
+  }, [stop]);
 
   const switchMonitor = (m: number) => {
     setMonitor(m);
