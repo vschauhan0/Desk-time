@@ -79,7 +79,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SessionLauncher>();
 
         // V1 placeholders for future modules
-        services.AddSingleton<IScreenCaptureService, DisabledScreenCaptureService>();
+        services.AddSingleton<IScreenCaptureService, Capture.GdiScreenCaptureService>();
         services.AddSingleton<IBrowserMonitoringProvider, NotEnabledBrowserMonitoringProvider>();
         return services;
     }

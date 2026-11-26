@@ -104,14 +104,29 @@ public interface IEventSink
     ValueTask EmitAsync(EventDraft draft, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Screenshots are NOT collected in V1. The interface exists so a policy-driven module can be added later.</summary>
+/// <summary>One display attached to the session, as the capture engine sees it.</summary>
+public sealed record MonitorInfo(int Index, int X, int Y, int Width, int Height, bool Primary);
+
+/// <summary>A captured, JPEG-encoded screen frame for one monitor.</summary>
+public sealed record ScreenCaptureFrame(byte[] Jpeg, int Width, int Height, int MonitorIndex);
+
+/// <summary>
+/// Captures the desktop. Only meaningful inside an interactive session process; in session 0 (the service)
+/// <see cref="EnumerateMonitors"/> returns an empty list and capture returns null.
+/// </summary>
 public interface IScreenCaptureService
 {
-    /// <summary>False in V1 (disabled by default; only explicit future policy may enable it).</summary>
+    /// <summary>Whether this implementation can capture (true for the real GDI engine, false for the disabled placeholder).</summary>
     bool IsEnabled { get; }
 
-    /// <summary>Capture a screenshot for an explicit, policy-approved reason. V1 always returns <see cref="ScreenCaptureResult.Disabled"/>.</summary>
+    /// <summary>Capture a screenshot for an explicit, policy-approved reason.</summary>
     Task<ScreenCaptureResult> CaptureAsync(ScreenCaptureMode mode, string reason, CancellationToken cancellationToken);
+
+    /// <summary>Lists the monitors attached to this session (empty when no interactive desktop is reachable).</summary>
+    IReadOnlyList<MonitorInfo> EnumerateMonitors();
+
+    /// <summary>Captures one monitor as JPEG, downscaled to <paramref name="maxWidth"/>. Null if the monitor is unknown or capture fails.</summary>
+    Task<ScreenCaptureFrame?> CaptureMonitorAsync(int monitorIndex, int maxWidth, int quality, CancellationToken cancellationToken);
 }
 
 /// <summary>Future screenshot policy modes.</summary>

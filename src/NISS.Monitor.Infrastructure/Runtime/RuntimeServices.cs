@@ -212,7 +212,7 @@ public sealed class CollectorRegistry : ICollectorRegistry
     public IReadOnlyList<CollectorHealth> Snapshot() => _items.Values.OrderBy(i => i.Name).ToList();
 }
 
-/// <summary>V1 placeholder: screenshots are never taken.</summary>
+/// <summary>Placeholder used where capture is impossible (session 0 / tests): never captures.</summary>
 public sealed class DisabledScreenCaptureService : IScreenCaptureService
 {
     public bool IsEnabled => false;
@@ -220,6 +220,13 @@ public sealed class DisabledScreenCaptureService : IScreenCaptureService
     /// <inheritdoc />
     public Task<ScreenCaptureResult> CaptureAsync(ScreenCaptureMode mode, string reason, CancellationToken cancellationToken)
         => Task.FromResult(ScreenCaptureResult.Disabled);
+
+    /// <inheritdoc />
+    public IReadOnlyList<MonitorInfo> EnumerateMonitors() => [];
+
+    /// <inheritdoc />
+    public Task<ScreenCaptureFrame?> CaptureMonitorAsync(int monitorIndex, int maxWidth, int quality, CancellationToken cancellationToken)
+        => Task.FromResult<ScreenCaptureFrame?>(null);
 }
 
 /// <summary>V1 placeholder: browser monitoring is a future module.</summary>
