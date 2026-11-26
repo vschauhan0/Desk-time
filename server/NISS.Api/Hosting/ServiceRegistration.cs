@@ -32,7 +32,7 @@ public static class ServiceRegistration
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddSingleton<IRealtimeNotifier, SignalRNotifier>();
-        services.AddSingleton<Realtime.ILiveRelay, Realtime.LiveRelay>();
+        services.AddSingleton<Application.Live.ILiveRelay, Realtime.LiveRelay>();
         services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
         // One JSON wire format everywhere (camelCase, string enums, nulls omitted) - identical to NISS.Monitor.Protocol.

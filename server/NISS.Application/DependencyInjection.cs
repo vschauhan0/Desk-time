@@ -51,6 +51,8 @@ public static class DependencyInjection
         services.AddScoped<IEventIngestionService, EventIngestionService>();
         services.AddScoped<Screenshots.IScreenshotIngestionService, Screenshots.ScreenshotIngestionService>();
         services.AddScoped<Screenshots.IScreenshotQueryService, Screenshots.ScreenshotQueryService>();
+        services.AddSingleton<Live.LiveSessionRegistry>();
+        services.AddScoped<Live.ILiveViewService, Live.LiveViewService>();
         foreach (var projector in new[]
         {
             typeof(ProcessProjector), typeof(ApplicationSessionProjector), typeof(UserSessionProjector), typeof(IdleSessionProjector),

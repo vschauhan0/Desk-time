@@ -2,8 +2,8 @@ using System.Buffers.Binary;
 using System.Net.WebSockets;
 using System.Security.Claims;
 using System.Text.Json;
-using NISS.Api.Realtime;
 using NISS.Api.Security;
+using NISS.Application.Live;
 using NISS.Monitor.Protocol;
 
 namespace NISS.Api.Features;

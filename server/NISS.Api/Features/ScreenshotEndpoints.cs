@@ -2,6 +2,7 @@ using System.Security.Claims;
 using NISS.Api.Http;
 using NISS.Api.Security;
 using NISS.Application.Common;
+using NISS.Application.Live;
 using NISS.Application.Screenshots;
 
 namespace NISS.Api.Features;
@@ -49,6 +50,25 @@ public static class ScreenshotEndpoints
             {
                 var file = await svc.GetImageAsync(deviceId, id, ct);
                 return Results.Stream(file.Content, "image/jpeg");
+            });
+
+        // Live view (SUPERADMIN): start returns the session id + hub group to watch.
+        sa.MapPost("/{deviceId}/live-view/start", async (
+                string deviceId, int? monitor, ILiveViewService live, CancellationToken ct) =>
+            Results.Ok(await live.StartAsync(deviceId, monitor ?? 0, ct)));
+
+        sa.MapPost("/{deviceId}/live-view/stop", async (
+                string deviceId, Guid liveSessionId, ILiveViewService live, CancellationToken ct) =>
+            {
+                await live.StopAsync(liveSessionId, ct);
+                return Results.NoContent();
+            });
+
+        sa.MapPost("/{deviceId}/live-view/switch", async (
+                string deviceId, Guid liveSessionId, int monitor, ILiveViewService live, CancellationToken ct) =>
+            {
+                await live.SwitchAsync(liveSessionId, monitor, ct);
+                return Results.NoContent();
             });
     }
 }

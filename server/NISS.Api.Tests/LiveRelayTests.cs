@@ -2,7 +2,7 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
-using NISS.Api.Realtime;
+using NISS.Application.Live;
 using NISS.Api.Tests.Infrastructure;
 using NISS.Monitor.Protocol;
 
