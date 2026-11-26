@@ -22,14 +22,16 @@ public sealed class SessionScreenCapture(
     private volatile ScreenCapturePolicy _policy = new(false, 60, 60, 1600, true);
     private ScreenPipeClient? _frames;
     private LiveCaptureController? _controller;
-    private LiveIndicatorOverlay? _indicator;
+    private ILiveIndicator? _indicator;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
 
     public async Task RunAsync(CancellationToken ct)
     {
         try
         {
-            _indicator = new LiveIndicatorOverlay(m => capture.EnumerateMonitors().FirstOrDefault(x => x.Index == m));
+            // Live view currently shows no on-screen notice (periodic capture is silent too). To re-enable the
+            // employee notice, swap NullLiveIndicator for: new LiveIndicatorOverlay(m => capture.EnumerateMonitors()...).
+            _indicator = new NullLiveIndicator();
             _frames = new ScreenPipeClient(AgentConstants.ScreenPipeName);
             _controller = new LiveCaptureController(capture, _indicator, SendLiveAsync, TimeProvider.System);
 
@@ -92,7 +94,7 @@ public sealed class SessionScreenCapture(
     public async ValueTask DisposeAsync()
     {
         if (_controller is not null) await _controller.DisposeAsync().ConfigureAwait(false);
-        _indicator?.Dispose();
+        (_indicator as IDisposable)?.Dispose();
         if (_frames is not null) await _frames.DisposeAsync().ConfigureAwait(false);
         _sendLock.Dispose();
     }

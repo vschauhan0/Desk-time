@@ -134,8 +134,9 @@ internal sealed class LiveViewService(
         var liveSessionId = Guid.NewGuid();
         var opts = live.Value;
         var fps = Math.Clamp(opts.MaxFps, 1, 15);
+        const int liveQuality = 72; // sharper live image; still well within the frame-size budget
         var sent = await relay.SendControlAsync(device.Id,
-            new LiveControlMessage(LiveControlAction.Start, liveSessionId, monitor, fps, 50), ct);
+            new LiveControlMessage(LiveControlAction.Start, liveSessionId, monitor, fps, liveQuality), ct);
         if (!sent) throw new ConflictException("Device is not reachable for live view.");
 
         var info = new LiveSessionInfo(liveSessionId, device.Id, device.DeviceCode, monitor, clock.GetUtcNow());

@@ -64,9 +64,12 @@ public sealed class LiveCaptureController(
     }
 
     /// <summary>Capture one live frame of the current monitor and emit it. Returns false if capture failed.</summary>
+    /// <summary>Max width of a live frame before JPEG encoding. 1920 keeps text readable without over-sizing the stream.</summary>
+    private const int LiveMaxWidth = 1920;
+
     public async Task<bool> TickAsync(Guid session, int quality, CancellationToken ct)
     {
-        var frame = await capture.CaptureMonitorAsync(Monitor, 1280, quality, ct).ConfigureAwait(false);
+        var frame = await capture.CaptureMonitorAsync(Monitor, LiveMaxWidth, quality, ct).ConfigureAwait(false);
         if (frame is null) return false;
         await frameSink(session, Monitor, frame.Jpeg, ct).ConfigureAwait(false);
         return true;

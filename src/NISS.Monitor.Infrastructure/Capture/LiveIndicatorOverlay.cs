@@ -12,6 +12,14 @@ public interface ILiveIndicator
     bool Visible { get; }
 }
 
+/// <summary>No-op indicator: live view shows nothing on the watched screen. Swap for <see cref="LiveIndicatorOverlay"/> to re-enable the notice.</summary>
+public sealed class NullLiveIndicator : ILiveIndicator
+{
+    public void Show(int monitor) { }
+    public void Hide() { }
+    public bool Visible => false;
+}
+
 /// <summary>
 /// A small, always-on-top, click-through (WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE) notice that the screen
 /// is being viewed. Rendered on a dedicated message-pump thread; tracked by a simple state machine so it is testable
