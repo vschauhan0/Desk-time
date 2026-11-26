@@ -1,7 +1,7 @@
 {
   "Agent": {
     "Server": {
-      "BaseUrl": "https://192.168.1.10:8443",
+      "BaseUrl": "https://192.168.1.222:8443",
       "CertificateThumbprint": "",
       "RequestTimeoutSeconds": 30
     },
