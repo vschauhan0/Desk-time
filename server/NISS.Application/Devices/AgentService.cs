@@ -5,6 +5,7 @@ using NISS.Application.Health;
 using NISS.Application.Live;
 using NISS.Application.Policies;
 using NISS.Application.Settings;
+using NISS.Application.Updates;
 using NISS.Domain;
 using NISS.Domain.Entities;
 using NISS.Monitor.Protocol;
@@ -21,7 +22,7 @@ public interface IAgentService
 
 internal sealed class AgentService(
     IAppDbContext db, TimeProvider clock, ISettingsService settings, IPolicyService policies, IDeviceStatusService statusService,
-    ISecurityEventService security, INotificationBuffer buffer, ILiveStateService live) : IAgentService
+    ISecurityEventService security, INotificationBuffer buffer, ILiveStateService live, IAgentUpdateService updates) : IAgentService
 {
     private static readonly TimeSpan MaxLiveSkew = TimeSpan.FromMinutes(5);
 
@@ -75,7 +76,10 @@ internal sealed class AgentService(
         await live.PublishAsync(device.Id, ct);
 
         var effective = await policies.GetEffectiveAsync(device.DeviceCode, await DepartmentAsync(device, ct), ct);
-        return new HeartbeatResponse(now, "ACTIVE", policyVersion, thresholds.MinAgentVersion ?? effective.MinAgentVersion, effective.LatestAgentVersion);
+        // Hot path: two indexed reads (newest live rollout + this device's update-state row).
+        var target = await updates.TargetVersionForAsync(device, device.AgentVersion, ct);
+        return new HeartbeatResponse(now, "ACTIVE", policyVersion, thresholds.MinAgentVersion ?? effective.MinAgentVersion, effective.LatestAgentVersion,
+            target, target is null ? null : $"/api/v1/agent/update/{target}");
     }
 
     private static void ApplyLive(AgentStatus s, LiveState? l, DateTimeOffset liveAt)

@@ -4,7 +4,9 @@ using NISS.Application.Audit;
 using NISS.Application.Common;
 using NISS.Application.Health;
 using NISS.Application.Settings;
+using NISS.Domain;
 using NISS.Domain.Entities;
+using NISS.Monitor.Protocol;
 
 namespace NISS.Application.Updates;
 
@@ -24,6 +26,18 @@ public interface IAgentUpdateService
 
     /// <summary>True while the device has an assigned update that has not yet finished or failed.</summary>
     Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct);
+
+    /// <summary>
+    /// The stored package for <paramref name="version"/>, but only when that is exactly the version currently assigned to the device
+    /// (a device may fetch only its own target); otherwise <see cref="ForbiddenException"/>.
+    /// </summary>
+    Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct);
+
+    /// <summary>
+    /// Upserts the device's update progress. A rolled_back/failed report records <see cref="DeviceUpdateState.FailedVersion"/> (the
+    /// quarantine <see cref="TargetVersionForAsync"/> reads) and raises an UPDATE_FAILED security event.
+    /// </summary>
+    Task ReportStatusAsync(Guid deviceId, UpdateStatusReport report, CancellationToken ct);
 }
 
 internal static class VersionText
@@ -44,7 +58,8 @@ internal static class VersionText
     private static Version Normalize(Version v) => new(v.Major, v.Minor, Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
 }
 
-internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService settings, IAuditService audit, TimeProvider clock) : IAgentUpdateService
+internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService settings, IAuditService audit, TimeProvider clock,
+    ISecurityEventService security, INotificationBuffer buffer) : IAgentUpdateService
 {
     public async Task<AgentRollout> CreateRolloutAsync(string version, string? notes, string actor, CancellationToken ct)
     {
@@ -109,4 +124,59 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
 
     public Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct) =>
         db.DeviceUpdateStates.AsNoTracking().AnyAsync(s => s.DeviceId == deviceId && s.AssignedVersion != null && UpdatePhase.InProgress.Contains(s.Phase), ct);
+
+    public async Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct)
+    {
+        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw new NotFoundException("Device not found.");
+        if (device.Status is DeviceHealth.Disabled or DeviceHealth.Revoked) throw new ForbiddenException($"Device is {device.Status}.");
+        var target = await TargetVersionForAsync(device, device.AgentVersion, ct);
+        if (target is null || !VersionText.Same(target, version)) throw new ForbiddenException("That version is not assigned to this device.");
+        return await db.AgentPackages.AsNoTracking().FirstOrDefaultAsync(p => p.Version == target, ct)
+            ?? throw new NotFoundException($"No uploaded package for version {target}.");
+    }
+
+    public async Task ReportStatusAsync(Guid deviceId, UpdateStatusReport report, CancellationToken ct)
+    {
+        var phase = MapPhase(report.Phase) ?? throw new BadRequestException("Unknown update phase.", nameof(report.Phase));
+        if (string.IsNullOrWhiteSpace(report.Version)) throw new BadRequestException("Version is required.", nameof(report.Version));
+        var version = Text.Trunc(report.Version.Trim(), 64)!;
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw new NotFoundException("Device not found.");
+        var now = clock.GetUtcNow();
+
+        var state = await db.DeviceUpdateStates.FirstOrDefaultAsync(s => s.DeviceId == deviceId, ct);
+        if (state is null)
+        {
+            state = new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = deviceId };
+            db.DeviceUpdateStates.Add(state);
+        }
+        state.AssignedVersion = version;
+        state.Phase = phase;
+        state.Attempts = Math.Max(report.Attempt, 0);
+        state.LastError = Text.Trunc(report.Error, 1000);
+        state.UpdatedAt = now;
+
+        if (phase is UpdatePhase.RolledBack or UpdatePhase.Failed)
+        {
+            state.FailedVersion = version;   // quarantine: TargetVersionForAsync never re-targets this version for this device
+            await security.RaiseAsync(new DeviceRef(device.Id, device.DeviceCode), SecurityEventKinds.UpdateFailed, SecuritySeverity.Warning,
+                $"{device.DeviceCode}: update to {version} {(phase == UpdatePhase.RolledBack ? "was rolled back" : "failed")}"
+                + (string.IsNullOrWhiteSpace(state.LastError) ? "." : $": {Text.Trunc(state.LastError, 200)}"),
+                onlyIfNoneOpen: false, ct: ct);
+        }
+        else if (phase == UpdatePhase.Succeeded && VersionText.Same(state.FailedVersion, version))
+            state.FailedVersion = null;
+
+        await db.SaveChangesAsync(ct);
+        await buffer.FlushAsync(ct);
+    }
+
+    private static string? MapPhase(string? phase) => phase?.Trim().ToLowerInvariant() switch
+    {
+        "downloading" => UpdatePhase.Downloading,
+        "verifying" or "installing" or "health_check" => UpdatePhase.Applying,
+        "updated" => UpdatePhase.Succeeded,
+        "failed" => UpdatePhase.Failed,
+        "rolled_back" => UpdatePhase.RolledBack,
+        _ => null,
+    };
 }

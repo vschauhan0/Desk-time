@@ -1,7 +1,12 @@
 using Microsoft.AspNetCore.Http.Features;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using NISS.Api.Http;
 using NISS.Api.Security;
+using NISS.Application.Options;
 using NISS.Application.Updates;
+using NISS.Monitor.Protocol;
 
 namespace NISS.Api.Features;
 
@@ -13,6 +18,37 @@ public static class AgentUpdateEndpoints
 
     public static void MapAgentUpdates(this RouteGroupBuilder api)
     {
+        // Device-authed: a device may fetch only the version currently assigned to it.
+        api.MapGet("/agent/update/{version}", async (string version, HttpContext http, ClaimsPrincipal user, IAgentUpdateService updates,
+                IPackageStore store, PackageDownloadGate gate, IOptions<AgentUpdateOptions> options, CancellationToken ct) =>
+            {
+                var package = await updates.GetAssignedPackageAsync(user.GetDeviceId(), version, ct);   // 403 unless it is this device's target
+                if (!gate.TryEnter())
+                {
+                    http.Response.Headers.RetryAfter = Math.Max(options.Value.DownloadRetryAfterSeconds, 1).ToString();
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                }
+                try
+                {
+                    await using var stream = store.OpenRead(package.RelPath);
+                    http.Response.ContentType = "application/zip";
+                    http.Response.ContentLength = stream.Length;
+                    await stream.CopyToAsync(http.Response.Body, ct);
+                    return Results.Empty;
+                }
+                catch (FileNotFoundException) when (!http.Response.HasStarted) { return Results.NotFound(); }
+                catch (DirectoryNotFoundException) when (!http.Response.HasStarted) { return Results.NotFound(); }
+                finally { gate.Exit(); }
+            })
+            .RequireAuthorization(AuthDefaults.DevicePolicy);
+
+        api.MapPost("/agent/update/status", async (UpdateStatusReport report, ClaimsPrincipal user, IAgentUpdateService updates, CancellationToken ct) =>
+            {
+                await updates.ReportStatusAsync(user.GetDeviceId(), report, ct);
+                return Results.NoContent();
+            })
+            .RequireAuthorization(AuthDefaults.DevicePolicy).RequireRateLimiting(RateLimiting.Ingest);
+
         var sa = api.MapGroup("/agent-packages").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
 
         // Multipart upload: a single "package" zip that contains manifest.json plus the files it lists.
@@ -34,4 +70,12 @@ public static class AgentUpdateEndpoints
             .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = MaxPackageBytes + 1024 * 1024 })
             .DisableAntiforgery();
     }
+}
+
+/// <summary>Server-wide cap on simultaneous package streams (singleton; sized from <see cref="AgentUpdateOptions.MaxConcurrentDownloads"/>).</summary>
+public sealed class PackageDownloadGate(IOptions<AgentUpdateOptions> options)
+{
+    private readonly SemaphoreSlim _slots = new(Math.Max(options.Value.MaxConcurrentDownloads, 1));
+    public bool TryEnter() => _slots.Wait(0);
+    public void Exit() => _slots.Release();
 }

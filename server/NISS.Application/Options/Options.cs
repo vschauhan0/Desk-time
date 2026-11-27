@@ -103,4 +103,8 @@ public sealed class AgentUpdateOptions
     /// certificate rotation. Empty rejects every package.
     /// </summary>
     public List<string> AcceptedPublisherSubjects { get; set; } = [];
+    /// <summary>Max simultaneous package downloads; past it agents get 503 + Retry-After so a fleet-wide flip cannot saturate the server.</summary>
+    public int MaxConcurrentDownloads { get; set; } = 8;
+    /// <summary>Retry-After (seconds) sent with a 503 when the download cap is reached.</summary>
+    public int DownloadRetryAfterSeconds { get; set; } = 60;
 }
