@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using NISS.Api.Http;
 using NISS.Api.Security;
+using NISS.Application.Abstractions;
+using NISS.Application.Common;
 using NISS.Application.Options;
 using NISS.Application.Updates;
 using NISS.Monitor.Protocol;
@@ -48,6 +50,37 @@ public static class AgentUpdateEndpoints
                 return Results.NoContent();
             })
             .RequireAuthorization(AuthDefaults.DevicePolicy).RequireRateLimiting(RateLimiting.Ingest);
+
+        var rollouts = api.MapGroup("/agent-rollouts").RequireAuthorization(AuthDefaults.AdminPolicy);
+        rollouts.MapPost("", async (CreateRolloutRequest req, ICurrentUser user, IAgentUpdateService updates, CancellationToken ct) =>
+        {
+            var rollout = await updates.CreateRolloutAsync(req.Version, req.Notes, user.Username ?? "unknown", ct);
+            return Results.Created($"/api/v1/agent-rollouts/{rollout.Id}", await updates.GetRolloutAsync(rollout.Id, ct));
+        });
+        rollouts.MapGet("{id:guid}", async (Guid id, IAgentUpdateService updates, CancellationToken ct) => Results.Ok(await updates.GetRolloutAsync(id, ct)));
+        rollouts.MapPost("{id:guid}/canary", async (Guid id, CanaryRequest req, ICurrentUser user, IAgentUpdateService updates, CancellationToken ct) =>
+        {
+            var ids = new List<Guid>();
+            foreach (var raw in req.DeviceIds ?? [])
+                ids.Add(Guid.TryParse(raw, out var g) ? g : throw new BadRequestException("Invalid device id.", nameof(req.DeviceIds)));
+            await updates.SetCanaryAsync(id, ids, user.Username ?? "unknown", ct);
+            return Results.Ok(await updates.GetRolloutAsync(id, ct));
+        });
+        rollouts.MapPost("{id:guid}/rollout", async (Guid id, IAgentUpdateService updates, CancellationToken ct) =>
+        {
+            await updates.PromoteAsync(id, ct);
+            return Results.Ok(await updates.GetRolloutAsync(id, ct));
+        });
+        rollouts.MapPost("{id:guid}/pause", async (Guid id, IAgentUpdateService updates, CancellationToken ct) =>
+        {
+            await updates.PauseAsync(id, ct);
+            return Results.Ok(await updates.GetRolloutAsync(id, ct));
+        });
+        rollouts.MapPost("{id:guid}/rollback", async (Guid id, IAgentUpdateService updates, CancellationToken ct) =>
+        {
+            await updates.RollbackAsync(id, ct);
+            return Results.Ok(await updates.GetRolloutAsync(id, ct));
+        });
 
         var sa = api.MapGroup("/agent-packages").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
 

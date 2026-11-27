@@ -109,4 +109,8 @@ public sealed class AgentUpdateOptions
     public int DownloadRetryAfterSeconds { get; set; } = 60;
     /// <summary>How long after the server serves a package a deliberate agent stop is treated as the update restart rather than tamper.</summary>
     public int UpdateRestartWindowMinutes { get; set; } = 30;
+    /// <summary>Canary gate: minimum fraction of attempted canary devices that are updated and healthy (0..1).</summary>
+    public double CanaryMinHealthyRatio { get; set; } = 0.95;
+    /// <summary>Canary gate: a device whose last heartbeat is older than this is offline, so it is pending and excluded from the gate.</summary>
+    public int CanaryStatusFreshMinutes { get; set; } = 15;
 }

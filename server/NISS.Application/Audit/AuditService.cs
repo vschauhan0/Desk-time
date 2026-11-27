@@ -35,6 +35,9 @@ public static class AuditActions
     public const string AgentPackageUploaded = "AGENT_PACKAGE_UPLOADED";
     public const string RolloutCreated = "ROLLOUT_CREATED";
     public const string RolloutCanarySet = "ROLLOUT_CANARY_SET";
+    public const string RolloutPromoted = "ROLLOUT_PROMOTED";
+    public const string RolloutPaused = "ROLLOUT_PAUSED";
+    public const string RolloutRolledBack = "ROLLOUT_ROLLED_BACK";
 }
 
 internal sealed class AuditService(IAppDbContext db, ICurrentUser user, TimeProvider clock) : IAuditService

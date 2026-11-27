@@ -76,6 +76,7 @@ internal sealed class AgentService(
         await live.PublishAsync(device.Id, ct);
 
         var effective = await policies.GetEffectiveAsync(device.DeviceCode, await DepartmentAsync(device, ct), ct);
+        await updates.ClearRecoveredFailureAsync(device.Id, device.AgentVersion, ct);
         // Hot path: two indexed reads (newest live rollout + this device's update-state row).
         var target = await updates.TargetVersionForAsync(device, device.AgentVersion, ct);
         return new HeartbeatResponse(now, "ACTIVE", policyVersion, thresholds.MinAgentVersion ?? effective.MinAgentVersion, effective.LatestAgentVersion,
