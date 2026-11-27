@@ -24,7 +24,7 @@ public interface IAgentUpdateService
     /// </summary>
     Task<string?> TargetVersionForAsync(Device device, string currentVersion, CancellationToken ct);
 
-    /// <summary>True while the device has an assigned update that has not yet finished or failed.</summary>
+    /// <summary>True while the server's live rollout assigns this device an update it has not yet reached (server state only).</summary>
     Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct);
 
     /// <summary>
@@ -122,8 +122,16 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
         return HealthEvaluator.IsOutdated(currentVersion, thresholds.MinAgentVersion) ? target : null;
     }
 
-    public Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct) =>
-        db.DeviceUpdateStates.AsNoTracking().AnyAsync(s => s.DeviceId == deviceId && s.AssignedVersion != null && UpdatePhase.InProgress.Contains(s.Phase), ct);
+    /// <summary>
+    /// SERVER-AUTHORITATIVE: true only while the server's own live rollout assigns this device a newer version (it drives the tamper
+    /// suppression, so it must not read anything the agent can write - e.g. <c>DeviceUpdateState.Phase</c> comes from the agent).
+    /// Active from assignment until the device is on the target version, when <see cref="TargetVersionForAsync"/> returns null.
+    /// </summary>
+    public async Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct)
+    {
+        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct);
+        return device is not null && await TargetVersionForAsync(device, device.AgentVersion, ct) is not null;
+    }
 
     public async Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct)
     {

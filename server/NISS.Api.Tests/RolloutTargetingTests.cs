@@ -174,16 +174,23 @@ public sealed class RolloutTargetingTests(ApiFactory factory) : IClassFixture<Ap
     }
 
     [Fact]
-    public async Task HasAssignedInProgressUpdate_is_true_only_for_in_progress_assignments()
+    public async Task HasAssignedInProgressUpdate_follows_the_server_rollout_not_agent_reported_state()
     {
-        var device = await NewDeviceAsync();
-        using var scope = factory.Scope();
-        var svc = scope.ServiceProvider.GetRequiredService<IAgentUpdateService>();
-        Assert.False(await svc.HasAssignedInProgressUpdateAsync(device.Id, default));
+        var device = await NewDeviceAsync("1.0.0.0");
+        using (var scope = factory.Scope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<IAgentUpdateService>();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            Assert.False(await svc.HasAssignedInProgressUpdateAsync(device.Id, default));
+            // An agent-written in-progress state alone must NOT count.
+            db.DeviceUpdateStates.Add(new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = device.Id, AssignedVersion = "9.9.9.0", Phase = UpdatePhase.Downloading, UpdatedAt = factory.Clock.GetUtcNow() });
+            await db.SaveChangesAsync();
+            Assert.False(await svc.HasAssignedInProgressUpdateAsync(device.Id, default));
+        }
 
-        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
-        db.DeviceUpdateStates.Add(new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = device.Id, AssignedVersion = "9.9.9.0", Phase = UpdatePhase.Downloading, UpdatedAt = factory.Clock.GetUtcNow() });
-        await db.SaveChangesAsync();
-        Assert.True(await svc.HasAssignedInProgressUpdateAsync(device.Id, default));
+        var rollout = await NewRolloutAsync(NewVersion());
+        await SetCanaryAsync(rollout.Id, device.Id);
+        using var scope2 = factory.Scope();
+        Assert.True(await scope2.ServiceProvider.GetRequiredService<IAgentUpdateService>().HasAssignedInProgressUpdateAsync(device.Id, default));
     }
 }

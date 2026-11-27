@@ -1,3 +1,5 @@
+using NISS.Application.Updates;
+using NISS.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NISS.Api.Tests.Infrastructure;
@@ -52,13 +54,44 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Contains(events, e => e.Kind == SecurityEventKinds.ServiceStopped);
     }
 
+private async Task EndRolloutsAsync()    {        using var scope = factory.Scope();        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();        foreach (var live in await db.AgentRollouts.Where(r => r.State == RolloutState.Canary || r.State == RolloutState.RolledOut).ToListAsync())            live.State = RolloutState.Done;        await db.SaveChangesAsync();    }
     private async Task AssignUpdateAsync(TestDevice d)
     {
+        factory.Clock.Advance(TimeSpan.FromMinutes(1));   // newest live rollout wins
         using var scope = factory.Scope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
         var id = await db.Devices.Where(x => x.DeviceCode == d.DeviceId).Select(x => x.Id).SingleAsync();
-        db.DeviceUpdateStates.Add(new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = id, AssignedVersion = "9.9.9.0", Phase = UpdatePhase.Applying, UpdatedAt = factory.Clock.GetUtcNow() });
+        foreach (var live in await db.AgentRollouts.Where(r => r.State == RolloutState.Canary || r.State == RolloutState.RolledOut).ToListAsync())
+            live.State = RolloutState.Done;
+        const string version = "99.0.0.0";
+        if (!await db.AgentPackages.AnyAsync(p => p.Version == version))
+            db.AgentPackages.Add(new AgentPackage { Id = Guid.NewGuid(), Version = version, RelPath = "99.zip", Sha256 = new string((char)97, 64), UploadedAt = factory.Clock.GetUtcNow() });
         await db.SaveChangesAsync();
+        var svc = scope.ServiceProvider.GetRequiredService<IAgentUpdateService>();
+        var rollout = await svc.CreateRolloutAsync(version, null, "tester", default);
+        await svc.SetCanaryAsync(rollout.Id, [id], "tester", default);
+    }
+
+    [Fact]
+    public async Task Agent_posted_in_progress_status_without_a_server_rollout_does_not_suppress_tamper()
+    {
+        var admin = await factory.AdminAsync();
+        var d = await factory.EnrollDeviceAsync(admin, "EMP-TMP5");
+        await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow()));
+        using (var scope = factory.Scope())   // no live rollout anywhere
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            foreach (var live in await db.AgentRollouts.Where(r => r.State == RolloutState.Canary || r.State == RolloutState.RolledOut).ToListAsync())
+                live.State = RolloutState.Done;
+            await db.SaveChangesAsync();
+        }
+        // The agent (device secret) forges an in-progress update status, then stops deliberately.
+        await d.Client.PostJsonAsync("/api/v1/agent/update/status", new UpdateStatusReport("99.0.0.0", "downloading", null, 1));
+        factory.Clock.Advance(TimeSpan.FromSeconds(20));
+        await d.IngestAsync(d.Event(EventTypes.AgentStopped, factory.Clock.GetUtcNow(),
+            P.Agent(message: StopReasons.UpdateRestart, interactiveUser: "CONTOSO\\jdoe")));
+
+        Assert.Single(await EventsAsync(admin, d), e => e.Kind == SecurityEventKinds.TamperSuspected);
     }
 
     [Fact]
@@ -76,6 +109,7 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
         var events = await EventsAsync(admin, d);
         Assert.DoesNotContain(events, e => e.Kind == SecurityEventKinds.TamperSuspected);
         Assert.Contains(events, e => e.Kind == SecurityEventKinds.ServiceStopped);
+        await EndRolloutsAsync();   // do not leak a live rollout into other tests
     }
 
     [Fact]
