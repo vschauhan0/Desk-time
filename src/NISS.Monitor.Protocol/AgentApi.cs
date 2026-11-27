@@ -111,6 +111,9 @@ public sealed record HeartbeatResponse(
     string? TargetAgentVersion = null,
     string? UpdateUrl = null);
 
+/// <summary>GET /api/v1/agent/update/target (device-authed, read-only): this device's assigned update, if any.</summary>
+public sealed record UpdateTargetResponse(string? TargetAgentVersion, string? UpdateUrl);
+
 /// <summary>One file in an update package; <paramref name="Sha256"/> is lowercase hex of the file contents.</summary>
 public sealed record ManifestFile(string Path, string Sha256);
 

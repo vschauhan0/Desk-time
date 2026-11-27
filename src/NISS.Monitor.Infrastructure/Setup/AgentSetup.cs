@@ -137,10 +137,11 @@ public static class AgentSetup
 
     /// <summary>Apply the hardened service DACL (see <see cref="HardenedServiceSddl"/>) so administrators can no
     /// longer stop or delete the service with the usual tools. No-op if the service is not registered.</summary>
-    public static void HardenServiceAcl(string serviceName = ServiceName, Action<string>? log = null)
+    public static void HardenServiceAcl(string serviceName = ServiceName, Action<string>? log = null,
+        Func<string, string, ToolResult>? run = null, Func<string, bool>? serviceExists = null)
     {
-        if (!ServiceExists(serviceName)) return;
-        Check(Run("sc.exe", $"sdset {serviceName} {HardenedServiceSddl}"), "sc sdset (harden)");
+        if (!(serviceExists ?? (n => ServiceExists(n)))(serviceName)) return;
+        Check((run ?? ((file, args) => Run(file, args)))("sc.exe", $"sdset {serviceName} {HardenedServiceSddl}"), "sc sdset (harden)");
         log?.Invoke($"{serviceName} locked: administrators can no longer stop or delete it with the usual tools");
     }
 
@@ -151,11 +152,12 @@ public static class AgentSetup
     /// <summary>Repoint <paramref name="serviceName"/> at <paramref name="exePath"/> and then RE-APPLY the hardened DACL.
     /// Never weakens the ACL: the caller (the SYSTEM watchdog) already holds change-config, so no unhardening is needed,
     /// and the DACL is asserted again afterwards so a reconfigure can never leave the service less protected.</summary>
-    public static void SwitchServiceBinPath(string serviceName, string exePath, Action<string>? log = null)
+    public static void SwitchServiceBinPath(string serviceName, string exePath, Action<string>? log = null,
+        Func<string, string, ToolResult>? run = null, Func<string, bool>? serviceExists = null)
     {
         if (!File.Exists(exePath)) throw new FileNotFoundException("Service executable not found", exePath);
-        Check(Run("sc.exe", ScConfigBinPathArgs(serviceName, exePath)), "sc config binPath");
-        HardenServiceAcl(serviceName, log);
+        Check((run ?? ((file, args) => Run(file, args)))("sc.exe", ScConfigBinPathArgs(serviceName, exePath)), "sc config binPath");
+        HardenServiceAcl(serviceName, log, run, serviceExists);
     }
 
     /// <summary>Restore the default service DACL (administrators full control). Best-effort - used by the agent's own

@@ -26,16 +26,19 @@ public interface IUpdateServiceControl
     void SetSessionRunKey(string versionDir);
 }
 
-/// <summary>Production implementation (runs as SYSTEM inside the watchdog, which already holds stop/config rights).</summary>
-public sealed class WindowsUpdateServiceControl(Action<string>? log = null) : IUpdateServiceControl
+/// <summary>Production implementation (runs as SYSTEM inside the watchdog, which already holds stop/config rights).
+/// The optional delegates are test seams: process runner, service-exists probe and the restart step.</summary>
+public sealed class WindowsUpdateServiceControl(Action<string>? log = null, Func<string, string, ToolResult>? run = null,
+    Func<string, bool>? serviceExists = null, Action? restart = null, Action<string>? setRunKey = null) : IUpdateServiceControl
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
     public void SwitchBinPath(string mainExePath) =>
-        AgentSetup.SwitchServiceBinPath(AgentSetup.ServiceName, mainExePath, log);
+        AgentSetup.SwitchServiceBinPath(AgentSetup.ServiceName, mainExePath, log, run, serviceExists);
 
     public void RestartMainService()
     {
+        if (restart is not null) { restart(); return; }
         // SYSTEM holds SERVICE_STOP under the hardened DACL, so we stop it directly - AgentSetup.StopService would
         // UNHARDEN first, which an update must never do.
         using (var sc = new ServiceController(AgentSetup.ServiceName))
@@ -51,7 +54,7 @@ public sealed class WindowsUpdateServiceControl(Action<string>? log = null) : IU
 
     public bool IsMainRunning() => AgentSetup.ServiceState() == nameof(ServiceControllerStatus.Running);
 
-    public void SetSessionRunKey(string versionDir) => AgentSetup.SetSessionRunKey(versionDir);
+    public void SetSessionRunKey(string versionDir) { if (setRunKey is not null) setRunKey(versionDir); else AgentSetup.SetSessionRunKey(versionDir); }
 }
 
 /// <summary>Everything the host needs from its environment.</summary>
@@ -72,6 +75,10 @@ public sealed class UpdateHostOptions
     public TimeSpan MaxRetryAfter { get; init; } = TimeSpan.FromMinutes(5);
     public TimeSpan HealthPoll { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan StartupGrace { get; init; } = TimeSpan.FromSeconds(45);
+    /// <summary>Startup grace on the resume/reboot path: a delayed-start service after a reboot must not be rolled back spuriously.</summary>
+    public TimeSpan ResumeStartupGrace { get; init; } = TimeSpan.FromMinutes(5);
+    /// <summary>Called with non-fatal operator-relevant notices (e.g. unsupported WatchdogChanged).</summary>
+    public Action<string>? Warn { get; init; }
     public TimeProvider Time { get; init; } = TimeProvider.System;
 }
 
@@ -161,6 +168,8 @@ public sealed class WindowsUpdateHost : IUpdateHost
         // Re-open the SAME verified bytes; install only manifest-listed files, re-checking each hash as it is written.
         using var archive = new ZipArchive(new MemoryStream(package), ZipArchiveMode.Read);
         var manifest = ReadManifest(archive);
+        if (manifest.WatchdogChanged)
+            _o.Warn?.Invoke($"Release {version} changes the watchdog, but watchdog self-update is not supported in this agent version; the running watchdog binary is NOT replaced. Reinstall the watchdog manually.");
         InstallFiles(archive, manifest, version, target, ct);
         return Task.CompletedTask;
     }
@@ -215,7 +224,9 @@ public sealed class WindowsUpdateHost : IUpdateHost
         return Task.CompletedTask;
     }
 
-    public async Task<bool> HealthyAsync(string version, TimeSpan window, CancellationToken ct)
+    public Task<bool> HealthyAsync(string version, TimeSpan window, CancellationToken ct) => HealthyAsync(version, window, _o.StartupGrace, ct);
+
+    private async Task<bool> HealthyAsync(string version, TimeSpan window, TimeSpan startupGrace, CancellationToken ct)
     {
         var started = _o.Time.GetUtcNow();
         var deadline = started + window;
@@ -224,7 +235,7 @@ public sealed class WindowsUpdateHost : IUpdateHost
         {
             var running = _svc.IsMainRunning();
             if (running) everRunning = true;
-            else if (everRunning || _o.Time.GetUtcNow() - started > _o.StartupGrace) return false;   // crashed / never came up
+            else if (everRunning || _o.Time.GetUtcNow() - started > startupGrace) return false;   // crashed / never came up
 
             var (v, hb) = _o.ReadHealth();
             if (running && string.Equals(v, version, StringComparison.Ordinal) && hb is { } t && t >= started)
@@ -273,11 +284,11 @@ public sealed class WindowsUpdateHost : IUpdateHost
     /// Startup recovery: if a switch was made but never health-confirmed (watchdog stopped / machine rebooted mid-gate),
     /// re-run the gate now; roll back to the retained previous version if it fails. Returns the version resolved, or null.
     /// </summary>
-    public async Task<string?> ResumePendingAsync(TimeSpan window, CancellationToken ct)
+    public async Task<string?> ResumePendingAsync(TimeSpan window, CancellationToken ct, TimeSpan? startupGrace = null)
     {
         var st = State;
         if (st.Pending is not { } pending) return null;
-        if (await HealthyAsync(pending, window, ct).ConfigureAwait(false))
+        if (await HealthyAsync(pending, window, startupGrace ?? _o.ResumeStartupGrace, ct).ConfigureAwait(false))
         {
             await _report(new UpdateStatusReport(pending, "updated", null, 1)).ConfigureAwait(false);
             return pending;

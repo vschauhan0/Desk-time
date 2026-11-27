@@ -64,31 +64,39 @@ public sealed class UpdateWorker : BackgroundService
             _log.LogInformation("Agent auto-update disabled: no Agent:Update:AcceptedPublisherSubjects configured");
             return;
         }
-        try
-        {
-            var host = BuildHost();
-            if (host is null) _log.LogWarning("Auto-update idle: device is not enrolled yet");
-            else
-            {
-                var resolved = await host.ResumePendingAsync(UpdateOrchestrator.HealthWindow, stoppingToken).ConfigureAwait(false);
-                if (resolved is not null) _log.LogInformation("Resolved a pending update switch; running version is {Version}", resolved);
-            }
+        // Guarded loop: nothing thrown by an update may escape and stop the host (it also runs the anti-tamper WatchdogWorker).
+        var loop = new UpdateLoop(ResumeAsync, TickAsync, TimeSpan.FromSeconds(Math.Max(15, _cfg.PollSeconds)), _time,
+            (what, ex) => _log.LogWarning(ex, "Agent update {What} failed; will retry", what));
+        await loop.RunAsync(stoppingToken).ConfigureAwait(false);
+    }
 
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(15, _cfg.PollSeconds)), _time);
-            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
-            {
-                try { await TickAsync(stoppingToken).ConfigureAwait(false); }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
-                catch (Exception ex) { _log.LogWarning(ex, "Update check failed"); }
-            }
-        }
-        catch (OperationCanceledException) { }
+    private static readonly TimeSpan ResumeWindow = TimeSpan.FromMinutes(6);
+    private static readonly TimeSpan ResumeGrace = TimeSpan.FromMinutes(5);
+
+    /// <summary>Resolves a switch that was made but never health-confirmed (restart / reboot / an earlier failed rollback).
+    /// Uses a longer window and startup grace than a live update, so a delayed-start service after a reboot is not rolled back spuriously.
+    /// Returns true when a pending switch existed (the caller then skips normal update work this round).</summary>
+    private async Task<bool> ResolvePendingAsync(WindowsUpdateHost host, CancellationToken ct)
+    {
+        if (host.State.Pending is null) return false;
+        var resolved = await host.ResumePendingAsync(ResumeWindow, ct, ResumeGrace).ConfigureAwait(false);
+        if (resolved is not null) _log.LogInformation("Resolved a pending update switch; running version is {Version}", resolved);
+        return true;
+    }
+
+    private async Task ResumeAsync(CancellationToken ct)
+    {
+        var host = BuildHost();
+        if (host is null) { _log.LogWarning("Auto-update idle: device is not enrolled yet"); return; }
+        await ResolvePendingAsync(host, ct).ConfigureAwait(false);
     }
 
     private async Task TickAsync(CancellationToken ct)
     {
         var host = BuildHost();
         if (host is null) return;
+        // A previous rollback may have thrown and left Pending set: retry it every tick (one poll interval of backoff) before anything else.
+        if (await ResolvePendingAsync(host, ct).ConfigureAwait(false)) return;
         var current = host.CurrentVersion;
 
         var (target, url) = await DiscoverTargetAsync(current, ct).ConfigureAwait(false);
@@ -118,20 +126,16 @@ public sealed class UpdateWorker : BackgroundService
             return (string.IsNullOrEmpty(target) ? null : target, string.IsNullOrEmpty(url) ? null : url);
         }
 
-        // Service has not heartbeated recently: poll the server over the watchdog's own device-authenticated channel.
+        // Service has not heartbeated recently: ask the server over the watchdog's own device-authenticated channel.
+        // READ-ONLY endpoint: it records nothing, so a wedged or killed agent is never reported Online by this probe.
         var id = _identity.Reload();
         if (id is null) return (null, null);
-        var req = new HeartbeatRequest(id.DeviceId, current, _time.GetUtcNow(), 0, "WatchdogProbe", [], 0, null, null,
-            "Main service not heartbeating; watchdog probe", 0, 0, null);
-        using var msg = new HttpRequestMessage(HttpMethod.Post, BaseUrl(id) + "/api/v1/devices/heartbeat")
-        {
-            Content = JsonContent.Create(req, options: ProtocolJson.Options),
-        };
+        using var msg = new HttpRequestMessage(HttpMethod.Get, BaseUrl(id) + "/api/v1/agent/update/target");
         msg.Headers.Authorization = new AuthenticationHeaderValue("NissDevice", $"{id.DeviceId}:{id.DeviceSecret}");
         using var resp = await _http.SendAsync(msg, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode) return (null, null);
-        var hb = await resp.Content.ReadFromJsonAsync<HeartbeatResponse>(ProtocolJson.Options, ct).ConfigureAwait(false);
-        return hb?.TargetAgentVersion is { Length: > 0 } tv && hb.UpdateUrl is { Length: > 0 } u ? (tv, u) : (null, null);
+        var t = await resp.Content.ReadFromJsonAsync<UpdateTargetResponse>(ProtocolJson.Options, ct).ConfigureAwait(false);
+        return t?.TargetAgentVersion is { Length: > 0 } tv && t.UpdateUrl is { Length: > 0 } u ? (tv, u) : (null, null);
     }
 
     private static string BaseUrl(DeviceIdentity id) => id.ServerBaseUrl.TrimEnd('/');
@@ -152,6 +156,7 @@ public sealed class UpdateWorker : BackgroundService
             Time = _time,
             Auth = () => _identity.Current is { } c ? new AuthenticationHeaderValue("NissDevice", $"{c.DeviceId}:{c.DeviceSecret}") : null,
             ReadHealth = ReadHealth,
+            Warn = m => _log.LogWarning("{Message}", m),
         };
         return new WindowsUpdateHost(opts, _http, new WindowsUpdateServiceControl(m => _log.LogInformation("{Message}", m)), ReportAsync);
     }

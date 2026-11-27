@@ -35,6 +35,9 @@ public interface IAgentUpdateService
     /// </summary>
     Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct);
 
+    /// <summary>Read-only: the version/URL this device is currently assigned (null/null when none, or when the device is disabled/revoked). Writes nothing and never touches device status.</summary>
+    Task<UpdateTargetResponse> GetTargetAsync(Guid deviceId, CancellationToken ct);
+
     /// <summary>
     /// Upserts the device's update progress. A rolled_back/failed report records <see cref="DeviceUpdateState.FailedVersion"/> (the
     /// quarantine <see cref="TargetVersionForAsync"/> reads) and raises an UPDATE_FAILED security event.
@@ -286,6 +289,14 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
         if (VersionText.Same(state.FailedVersion, state.AssignedVersion)) return false;
         var window = TimeSpan.FromMinutes(Math.Max(options.Value.UpdateRestartWindowMinutes, 0));
         return clock.GetUtcNow() - served <= window;
+    }
+
+    public async Task<UpdateTargetResponse> GetTargetAsync(Guid deviceId, CancellationToken ct)
+    {
+        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw new NotFoundException("Device not found.");
+        if (device.Status is DeviceHealth.Disabled or DeviceHealth.Revoked) return new UpdateTargetResponse(null, null);
+        var target = await TargetVersionForAsync(device, device.AgentVersion, ct);
+        return target is null ? new UpdateTargetResponse(null, null) : new UpdateTargetResponse(target, $"/api/v1/agent/update/{target}");
     }
 
     public async Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct)

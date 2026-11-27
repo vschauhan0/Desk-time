@@ -25,7 +25,12 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = args, ContentRootPath = AppContext.BaseDirectory });
         builder.Services.AddWindowsService(o => o.ServiceName = AgentConstants.WatchdogServiceName);
-        builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(10));
+        builder.Services.Configure<HostOptions>(o =>
+        {
+            o.ShutdownTimeout = TimeSpan.FromSeconds(10);
+            // A failing update worker must never stop the host (and with it the anti-tamper WatchdogWorker).
+            o.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
 
         builder.Logging.ClearProviders();
         var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "NISS", "Agent", "Logs");

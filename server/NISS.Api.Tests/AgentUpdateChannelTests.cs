@@ -67,6 +67,32 @@ public sealed class AgentUpdateChannelTests(ApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Target_probe_returns_assignment_without_marking_the_device_online_or_touching_state()
+    {
+        var admin = await factory.AdminAsync();
+        var d = await factory.EnrollDeviceAsync(admin, "EMP-UC-PROBE");
+        await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow(), version: "1.0.0.0"));
+        var v = NewVersion();
+        await StartRolloutAsync(v);
+
+        async Task<(DateTimeOffset? lastSeen, DateTimeOffset? updated, int beats)> Snapshot()
+        {
+            using var scope = factory.Scope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var dev = await db.Devices.AsNoTracking().SingleAsync(x => x.DeviceCode == d.DeviceId);
+            return (dev.LastSeen, dev.UpdatedAt, await db.Heartbeats.CountAsync(h => h.DeviceId == dev.Id));
+        }
+        var before = await Snapshot();
+        factory.Clock.Advance(TimeSpan.FromMinutes(30));
+
+        var target = await (await d.Client.GetAsync("/api/v1/agent/update/target")).ReadAsync<UpdateTargetResponse>();
+
+        Assert.Equal(v, target.TargetAgentVersion);
+        Assert.Equal($"/api/v1/agent/update/{v}", target.UpdateUrl);
+        Assert.Equal(before, await Snapshot());
+    }
+
+    [Fact]
     public async Task Download_of_assigned_version_streams_the_package_and_other_versions_are_forbidden()
     {
         var admin = await factory.AdminAsync();

@@ -44,6 +44,11 @@ public static class AgentUpdateEndpoints
             })
             .RequireAuthorization(AuthDefaults.DevicePolicy);
 
+        // Read-only recovery probe for the watchdog: no heartbeat, no status/Online side effects. (Literal segment beats {version}.)
+        api.MapGet("/agent/update/target", async (ClaimsPrincipal user, IAgentUpdateService updates, CancellationToken ct) =>
+                Results.Ok(await updates.GetTargetAsync(user.GetDeviceId(), ct)))
+            .RequireAuthorization(AuthDefaults.DevicePolicy);
+
         api.MapPost("/agent/update/status", async (UpdateStatusReport report, ClaimsPrincipal user, IAgentUpdateService updates, CancellationToken ct) =>
             {
                 await updates.ReportStatusAsync(user.GetDeviceId(), report, ct);

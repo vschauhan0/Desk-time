@@ -284,4 +284,105 @@ public sealed class WindowsUpdateHostTests : IDisposable
         Assert.Equal("rolled_back", reports.Single().Phase);
         Assert.Equal(new UpdateState("1.0.0", null, null), host.State);
     }
+
+    // ---- ACL re-apply invariant: sc config binPath= THEN sc sdset <HardenedServiceSddl>, on switch AND rollback ----
+
+    private (WindowsUpdateHost host, List<string> sc) HostWithRealAclSequence()
+    {
+        var sc = new List<string>();
+        var ctl = new WindowsUpdateServiceControl(
+            run: (file, args) => { sc.Add($"{file} {args}"); return new ToolResult(0, ""); },
+            serviceExists: _ => true, restart: () => sc.Add("restart"), setRunKey: _ => { });
+        var opts = new UpdateHostOptions
+        {
+            InstallDir = Install, StatePath = Path.Combine(_root, "acl-state.json"), LegacyVersion = "1.0.0",
+            ServerBaseUrl = new Uri("https://s"), Auth = () => null, ReadHealth = () => (null, null),
+        };
+        File.WriteAllText(Path.Combine(Install, "Windows.RunService.exe"), "x");
+        var v2 = UpdateLayout.VersionDir(Install, "2.0.0");
+        Directory.CreateDirectory(v2);
+        File.WriteAllText(Path.Combine(v2, "Windows.RunService.exe"), "x");
+        return (new WindowsUpdateHost(opts, new HttpClient(), ctl, _ => Task.CompletedTask), sc);
+    }
+
+    [Fact]
+    public async Task Switch_runs_sc_config_then_reapplies_the_hardened_sddl_before_restart()
+    {
+        var (host, sc) = HostWithRealAclSequence();
+        await host.SwitchToAsync("2.0.0");
+        var exe = Path.Combine(UpdateLayout.VersionDir(Install, "2.0.0"), "Windows.RunService.exe");
+        Assert.Equal(
+            [$"sc.exe config NISSMonitorService binPath= \"{exe}\"", $"sc.exe sdset NISSMonitorService {AgentSetup.HardenedServiceSddl}", "restart"], sc);
+    }
+
+    [Fact]
+    public async Task Rollback_runs_sc_config_then_reapplies_the_hardened_sddl()
+    {
+        var (host, sc) = HostWithRealAclSequence();
+        await host.SwitchToAsync("2.0.0");
+        sc.Clear();
+        await host.RollbackAsync("1.0.0");
+        var exe = Path.Combine(Install, "Windows.RunService.exe");
+        Assert.Equal(
+            [$"sc.exe config NISSMonitorService binPath= \"{exe}\"", $"sc.exe sdset NISSMonitorService {AgentSetup.HardenedServiceSddl}", "restart"], sc);
+        Assert.DoesNotContain(sc, c => c.Contains(AgentSetup.DefaultServiceSddl));   // never unhardened
+    }
+
+    // ---- guarded update loop ----
+
+    [Fact]
+    public async Task Exceptions_from_resume_and_ticks_do_not_stop_the_loop()
+    {
+        var errors = new List<string>();
+        var ticks = 0;
+        using var cts = new CancellationTokenSource();
+        var loop = new UpdateLoop(_ => throw new InvalidOperationException("resume boom"),
+            _ => { if (++ticks >= 3) cts.Cancel(); throw new DirectoryNotFoundException("tick boom"); },
+            TimeSpan.FromMilliseconds(10), TimeProvider.System, (what, _) => errors.Add(what));
+
+        await loop.RunAsync(cts.Token);   // returns normally, no exception escapes
+
+        Assert.Equal(3, ticks);
+        Assert.Equal("startup resume", errors[0]);
+        Assert.Equal(4, errors.Count);
+    }
+
+    // ---- WatchdogChanged is surfaced, resume grace ----
+
+    [Fact]
+    public async Task WatchdogChanged_manifest_is_warned_about_not_silently_ignored()
+    {
+        var warnings = new List<string>();
+        var opts = new UpdateHostOptions
+        {
+            InstallDir = Install, StatePath = Path.Combine(_root, "w.json"), LegacyVersion = "1.0.0", ServerBaseUrl = new Uri("https://s"),
+            Auth = () => null, ReadHealth = () => (null, null), Warn = warnings.Add,
+        };
+        var host = new WindowsUpdateHost(opts, new HttpClient(), new FakeSvc(), _ => Task.CompletedTask);
+        var d = new byte[] { 1 };
+        var zip = Zip([("agent.exe", d)], new ReleaseManifest("2.0.0", null, [new ManifestFile("agent.exe", Sha(d))], true, null));
+        await host.InstallSideBySideAsync("2.0.0", zip, CancellationToken.None);
+        Assert.Contains("watchdog self-update is not supported", Assert.Single(warnings));
+    }
+
+    [Fact]
+    public async Task Resume_tolerates_a_slow_service_start_within_the_longer_resume_grace()
+    {
+        var svc = new FakeSvc { Running = false };
+        var opts = new UpdateHostOptions
+        {
+            InstallDir = Install, StatePath = Path.Combine(_root, "g.json"), LegacyVersion = "1.0.0", ServerBaseUrl = new Uri("https://s"),
+            Auth = () => null, HealthPoll = TimeSpan.FromMilliseconds(10), StartupGrace = TimeSpan.FromMilliseconds(20),
+            ReadHealth = () => (svc.Running ? "2.0.0" : null, svc.Running ? DateTimeOffset.UtcNow.AddSeconds(5) : null),
+        };
+        var host = new WindowsUpdateHost(opts, new HttpClient(), svc, _ => Task.CompletedTask);
+        Directory.CreateDirectory(UpdateLayout.VersionDir(Install, "2.0.0"));
+        await host.SwitchToAsync("2.0.0");
+        _ = Task.Run(async () => { await Task.Delay(300); svc.Running = true; });   // delayed-start after reboot
+
+        var resolved = await host.ResumePendingAsync(TimeSpan.FromSeconds(10), CancellationToken.None, TimeSpan.FromSeconds(5));
+
+        Assert.Equal("2.0.0", resolved);
+        Assert.Null(host.State.Pending);
+    }
 }
