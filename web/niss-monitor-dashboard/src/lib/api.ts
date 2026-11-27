@@ -4,6 +4,7 @@ import type {
   AdminUserDto,
   AdminUserUpsert,
   AppCategoryRule,
+  AppPageInfo,
   ApplicationActivityResponse,
   AuditLogDto,
   AuthResponse,
@@ -31,6 +32,7 @@ import type {
   RetentionSettings,
   ScreenshotClipDto,
   ScreenshotDto,
+  ScreenshotStorageSettings,
   SecurityEventDto,
   SystemMetricDto,
   TimelineItem,
@@ -339,6 +341,7 @@ export const api = {
 
   // admin users (SUPERADMIN)
   adminUsers: () => request<AdminUserDto[]>("/admin-users"),
+  adminPages: () => request<AppPageInfo[]>("/admin-users/pages"),
   createAdminUser: (body: AdminUserUpsert) => request<AdminUserDto>("/admin-users", { method: "POST", body }),
   updateAdminUser: (id: string, body: AdminUserUpsert) =>
     request<AdminUserDto>(`/admin-users/${enc(id)}`, { method: "PUT", body }),
@@ -425,6 +428,9 @@ export const api = {
   retention: () => request<RetentionSettings>("/settings/retention"),
   saveRetention: (body: RetentionSettings) =>
     request<RetentionSettings>("/settings/retention", { method: "PUT", body }),
+  screenshotStorage: () => request<ScreenshotStorageSettings>("/settings/screenshot-storage"),
+  saveScreenshotStorage: (body: ScreenshotStorageSettings) =>
+    request<ScreenshotStorageSettings>("/settings/screenshot-storage", { method: "PUT", body }),
   healthThresholds: () => request<HealthThresholds>("/settings/health-thresholds"),
   saveHealthThresholds: (body: HealthThresholds) =>
     request<HealthThresholds>("/settings/health-thresholds", { method: "PUT", body }),

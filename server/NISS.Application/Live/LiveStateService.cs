@@ -67,7 +67,7 @@ public static class LiveCardFactory
 }
 
 internal sealed class LiveStateService(
-    IAppDbContext db, IRealtimeNotifier notifier, Microsoft.Extensions.Logging.ILogger<LiveStateService> log) : ILiveStateService
+    IAppDbContext db, IRealtimeNotifier notifier, Auth.IAccessScopeProvider access, Microsoft.Extensions.Logging.ILogger<LiveStateService> log) : ILiveStateService
 {
     private sealed class LiveRow { public Device D { get; set; } = null!; public Employee? E { get; set; } public AgentStatus? S { get; set; } }
 
@@ -81,6 +81,8 @@ internal sealed class LiveStateService(
 
     public async Task<LiveDeviceCard?> GetCardAsync(Guid deviceId, CancellationToken ct)
     {
+        // RBAC: a restricted user cannot read a device outside their scope.
+        if (!(await access.CurrentAsync(ct)).CanSeeDevice(deviceId)) return null;
         var row = await Joined().Where(x => x.D.Id == deviceId).FirstOrDefaultAsync(ct);
         return row is null ? null : LiveCardFactory.Build(row.D, row.E, row.S);
     }
@@ -88,6 +90,12 @@ internal sealed class LiveStateService(
     public async Task<IReadOnlyList<LiveDeviceCard>> QueryAsync(LiveFilter f, CancellationToken ct)
     {
         var q = Joined();
+        var scope = await access.CurrentAsync(ct);
+        if (!scope.All)
+        {
+            var allowed = scope.DeviceIds.ToList();
+            q = q.Where(x => allowed.Contains(x.D.Id));
+        }
         if (!string.IsNullOrWhiteSpace(f.Status)) { var st = f.Status.Trim().ToUpperInvariant(); q = q.Where(x => x.D.Status == st); }
         if (!string.IsNullOrWhiteSpace(f.Department)) { var dept = f.Department.Trim(); q = q.Where(x => x.E != null && x.E.Department == dept); }
         if (!string.IsNullOrWhiteSpace(f.Employee)) { var code = f.Employee.Trim(); q = q.Where(x => x.E != null && x.E.EmployeeCode == code); }

@@ -11,7 +11,7 @@ function auth(): AuthResponse {
     accessToken: "tok-1",
     refreshToken: "ref-1",
     expiresAtUtc: new Date(Date.now() + 15 * 60_000).toISOString(),
-    user: { id: "u1", username: "admin", displayName: "Admin", role: "SUPERADMIN" },
+    user: { id: "u1", username: "admin", displayName: "Admin", role: "SUPERADMIN", pageAccess: null },
   };
 }
 

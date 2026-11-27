@@ -1,3 +1,4 @@
+using NISS.Api.Http;
 using System.Text.Json;
 using NISS.Api.Security;
 using NISS.Application.Abstractions;
@@ -76,19 +77,19 @@ public static class DeviceEndpoints
         {
             await commands.DisableAsync(deviceId, ct);
             return Results.NoContent();
-        });
+        }).RequirePageEdit("devices");
         admin.MapPost("/{deviceId}/enable", async (string deviceId, IDeviceCommandService commands, CancellationToken ct) =>
         {
             await commands.EnableAsync(deviceId, ct);
             return Results.NoContent();
-        });
+        }).RequirePageEdit("devices");
         admin.MapPost("/{deviceId}/revoke", async (string deviceId, IDeviceCommandService commands, CancellationToken ct) =>
         {
             await commands.RevokeAsync(deviceId, ct);
             return Results.NoContent();
-        });
+        }).RequirePageEdit("devices");
         admin.MapPost("/{deviceId}/re-enroll", async (string deviceId, IDeviceCommandService commands, CancellationToken ct) =>
-            Results.Ok(await commands.ReEnrollAsync(deviceId, 24, ct)));
+            Results.Ok(await commands.ReEnrollAsync(deviceId, 24, ct))).RequirePageEdit("devices");
 
         // Cross-device views.
         viewer.MapGet("/applications", async ([AsParameters] ApplicationsQuery q, IScopeResolver scopes, IApplicationUsageService usage, TimeProvider clock, CancellationToken ct) =>

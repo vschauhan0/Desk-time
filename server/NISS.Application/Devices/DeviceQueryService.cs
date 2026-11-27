@@ -26,7 +26,7 @@ public interface IDeviceQueryService
     Task<DeviceInventoryDto> InventoryAsync(string deviceCode, CancellationToken ct);
 }
 
-internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService security) : IDeviceQueryService
+internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService security, Auth.IAccessScopeProvider access) : IDeviceQueryService
 {
     private sealed class Row { public Device D { get; set; } = null!; public Employee? E { get; set; } public AgentStatus? S { get; set; } }
 
@@ -42,12 +42,15 @@ internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService
     {
         var code = deviceCode.Trim();
         var id = await db.Devices.AsNoTracking().Where(d => d.DeviceCode == code).Select(d => (Guid?)d.Id).FirstOrDefaultAsync(ct);
-        return id ?? throw new NotFoundException($"Device {code} not found.");
+        if (id is null || !(await access.CurrentAsync(ct)).CanSeeDevice(id.Value)) throw new NotFoundException($"Device {code} not found.");
+        return id.Value;
     }
 
     public async Task<Paged<DeviceSummary>> ListAsync(DeviceFilter f, PageRequest page, CancellationToken ct)
     {
         var q = Joined();
+        var scope = await access.CurrentAsync(ct);
+        if (!scope.All) { var allowed = scope.DeviceIds.ToList(); q = q.Where(x => allowed.Contains(x.D.Id)); }
         if (!string.IsNullOrWhiteSpace(f.Status)) { var st = f.Status.Trim().ToUpperInvariant(); q = q.Where(x => x.D.Status == st); }
         if (!string.IsNullOrWhiteSpace(f.Employee)) { var code = f.Employee.Trim().ToLower(); q = q.Where(x => x.E != null && x.E.EmployeeCode.ToLower() == code); }
         if (!string.IsNullOrWhiteSpace(f.Department)) { var dept = f.Department.Trim().ToLower(); q = q.Where(x => x.E != null && x.E.Department != null && x.E.Department.ToLower() == dept); }
@@ -64,6 +67,7 @@ internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService
     {
         var code = deviceCode.Trim();
         var row = await Joined().FirstOrDefaultAsync(x => x.D.DeviceCode == code, ct) ?? throw new NotFoundException($"Device {code} not found.");
+        if (!(await access.CurrentAsync(ct)).CanSeeDevice(row.D.Id)) throw new NotFoundException($"Device {code} not found.");
         var users = await db.DeviceUsers.AsNoTracking().Where(u => u.DeviceId == row.D.Id).OrderBy(u => u.WindowsUsername).Select(u => u.WindowsUsername).ToListAsync(ct);
         return new DeviceDetail(
             ToSummary(row.D, row.E, row.S), LiveCardFactory.Build(row.D, row.E, row.S),

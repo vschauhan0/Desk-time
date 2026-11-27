@@ -7,9 +7,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -50,9 +53,10 @@ function ChartTooltip({ active, payload, label, format, labelFormat }: TooltipPr
   );
 }
 
-function ChartFrame({ height, children, label }: { height: number; children: ReactNode; label: string }) {
+function ChartFrame({ height, children, label }: { height: number | "fill"; children: ReactNode; label: string }) {
+  const fill = height === "fill";
   return (
-    <div role="img" aria-label={label} style={{ height }} className="w-full min-w-0">
+    <div role="img" aria-label={label} style={fill ? undefined : { height }} className={fill ? "h-full min-h-0 w-full min-w-0" : "w-full min-w-0"}>
       <ResponsiveContainer width="100%" height="100%">
         {children as React.ReactElement}
       </ResponsiveContainer>
@@ -62,8 +66,8 @@ function ChartFrame({ height, children, label }: { height: number; children: Rea
 
 const legendStyle = { fontSize: 12, paddingTop: 6 } as const;
 
-/** Stacked hourly area chart (seconds in, minutes on the axis). */
-export function StackedAreaByHour({ data, series, height = 260 }: { data: Record<string, number>[]; series: SeriesDef[]; height?: number }) {
+/** Stacked hourly area chart (seconds in, minutes on the axis). Pass height="fill" to size to a flex parent. */
+export function StackedAreaByHour({ data, series, height = 260 }: { data: Record<string, number>[]; series: SeriesDef[]; height?: number | "fill" }) {
   return (
     <ChartFrame height={height} label="Activity by hour">
       <AreaChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -107,6 +111,51 @@ export function DurationBars({ data, series, stacked = false, rowHeight = 30, na
         ))}
       </BarChart>
     </ChartFrame>
+  );
+}
+
+export interface DonutSlice {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+}
+
+/**
+ * Donut chart with a centred total and an inline legend. Built for a fixed-height dashboard cell: the ring sizes to
+ * its container, so the parent controls the height. Zero-value slices are dropped so the ring is never a sliver of noise.
+ */
+export function Donut({ slices, centerLabel, height = 180 }: { slices: DonutSlice[]; centerLabel?: string; height?: number }) {
+  const data = slices.filter((s) => s.value > 0);
+  const total = slices.reduce((n, s) => n + s.value, 0);
+  return (
+    <div className="flex min-w-0 items-center gap-4">
+      <div className="relative shrink-0" style={{ width: height, height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="label" innerRadius="64%" outerRadius="100%" paddingAngle={data.length > 1 ? 2 : 0} stroke="var(--surface)" strokeWidth={2} isAnimationActive={false}>
+              {data.map((s) => (
+                <Cell key={s.key} fill={s.color} />
+              ))}
+            </Pie>
+            <Tooltip content={(p) => <ChartTooltip {...p} format={(n) => String(n)} />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-semibold tabular-nums leading-none">{total}</span>
+          {centerLabel && <span className="mt-0.5 text-[11px] text-faint">{centerLabel}</span>}
+        </div>
+      </div>
+      <ul className="min-w-0 flex-1 space-y-1.5">
+        {slices.map((s) => (
+          <li key={s.key} className="flex items-center gap-2 text-[12.5px]">
+            <span className="inline-block size-2.5 shrink-0 rounded-sm" style={{ background: s.color }} aria-hidden />
+            <span className="min-w-0 truncate text-muted">{s.label}</span>
+            <span className="ml-auto pl-2 font-medium tabular-nums">{s.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

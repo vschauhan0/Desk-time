@@ -21,7 +21,7 @@ function auth(access: string, refresh: string, expiresInMs = 15 * 60_000): AuthR
     accessToken: access,
     refreshToken: refresh,
     expiresAtUtc: new Date(Date.now() + expiresInMs).toISOString(),
-    user: { id: "u1", username: "admin", displayName: "Admin", role: "ADMIN" },
+    user: { id: "u1", username: "admin", displayName: "Admin", role: "ADMIN", pageAccess: null },
   };
 }
 

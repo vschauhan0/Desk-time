@@ -38,9 +38,9 @@ public static class EmployeeEndpoints
         {
             var created = await svc.CreateAsync(body, ct);
             return Results.Created($"/api/v1/employees/{created.Id}", created);
-        }).WithValidation<EmployeeUpsert>();
+        }).WithValidation<EmployeeUpsert>().RequirePageEdit("employees");
         admin.MapPut("/{id:guid}", async (Guid id, EmployeeUpsert body, IEmployeeService svc, CancellationToken ct) =>
-            Results.Ok(await svc.UpdateAsync(id, body, ct))).WithValidation<EmployeeUpsert>();
+            Results.Ok(await svc.UpdateAsync(id, body, ct))).WithValidation<EmployeeUpsert>().RequirePageEdit("employees");
     }
 }
 
@@ -68,7 +68,7 @@ public static class EventListEndpoints
 
         var admin = api.MapGroup("").RequireAuthorization(AuthDefaults.AdminPolicy);
         admin.MapPost("/security-events/{id:guid}/resolve", async (Guid id, ISecurityEventService security, CancellationToken ct) =>
-            Results.Ok(await security.ResolveByIdAsync(id, ct)));
+            Results.Ok(await security.ResolveByIdAsync(id, ct))).RequirePageEdit("security");
 
         admin.MapGet("/audit-logs", async ([AsParameters] AuditLogQuery q, IAuditQueryService audit, CancellationToken ct) =>
             Results.Ok(await audit.QueryAsync(q.From, q.To, q.User, q.Action, q.Paging, ct)));
@@ -103,31 +103,35 @@ public static class SettingsEndpoints
 
         g.MapGet("/policies", async (IPolicyService policies, CancellationToken ct) => Results.Ok(await policies.ListAsync(ct)));
         g.MapPut("/policies/{id:guid}", async (Guid id, PolicyUpsert body, IPolicyService policies, CancellationToken ct) =>
-            Results.Ok(await policies.UpsertAsync(id, body, ct))).WithValidation<PolicyUpsert>();
+            Results.Ok(await policies.UpsertAsync(id, body, ct))).WithValidation<PolicyUpsert>().RequirePageEdit("settings.policies");
         // The dashboard creates scoped policies with PUT on the collection; POST is accepted as well.
         Delegate createPolicy = async (PolicyUpsert body, IPolicyService policies, CancellationToken ct) =>
         {
             var created = await policies.UpsertAsync(Guid.NewGuid(), body, ct);
             return Results.Created($"/api/v1/settings/policies/{created.Id}", created);
         };
-        g.MapPut("/policies", createPolicy).WithValidation<PolicyUpsert>();
-        g.MapPost("/policies", createPolicy).WithValidation<PolicyUpsert>();
+        g.MapPut("/policies", createPolicy).WithValidation<PolicyUpsert>().RequirePageEdit("settings.policies");
+        g.MapPost("/policies", createPolicy).WithValidation<PolicyUpsert>().RequirePageEdit("settings.policies");
         g.MapDelete("/policies/{id:guid}", async (Guid id, IPolicyService policies, CancellationToken ct) =>
         {
             await policies.DeleteAsync(id, ct);
             return Results.NoContent();
-        });
+        }).RequirePageEdit("settings.policies");
 
         g.MapGet("/app-categories", async (ICategoryService categories, CancellationToken ct) => Results.Ok(await categories.ListAsync(ct)));
         g.MapPut("/app-categories", async (List<AppCategoryRule> body, ICategoryService categories, CancellationToken ct) =>
-            Results.Ok(await categories.ReplaceAsync(body, ct))).WithValidation<List<AppCategoryRule>>();
+            Results.Ok(await categories.ReplaceAsync(body, ct))).WithValidation<List<AppCategoryRule>>().RequirePageEdit("settings.categories");
 
         g.MapGet("/retention", async (ISettingsAdminService settings, CancellationToken ct) => Results.Ok(await settings.GetRetentionAsync(ct)));
         g.MapPut("/retention", async (RetentionSettings body, ISettingsAdminService settings, CancellationToken ct) =>
-            Results.Ok(await settings.UpdateRetentionAsync(body, ct))).WithValidation<RetentionSettings>();
+            Results.Ok(await settings.UpdateRetentionAsync(body, ct))).WithValidation<RetentionSettings>().RequirePageEdit("settings.retention");
 
         g.MapGet("/health-thresholds", async (ISettingsAdminService settings, CancellationToken ct) => Results.Ok(await settings.GetThresholdsAsync(ct)));
         g.MapPut("/health-thresholds", async (HealthThresholds body, ISettingsAdminService settings, CancellationToken ct) =>
-            Results.Ok(await settings.UpdateThresholdsAsync(body, ct))).WithValidation<HealthThresholds>();
+            Results.Ok(await settings.UpdateThresholdsAsync(body, ct))).WithValidation<HealthThresholds>().RequirePageEdit("settings.thresholds");
+
+        g.MapGet("/screenshot-storage", async (ISettingsAdminService settings, CancellationToken ct) => Results.Ok(await settings.GetScreenshotStorageAsync(ct)));
+        g.MapPut("/screenshot-storage", async (ScreenshotStorageSettings body, ISettingsAdminService settings, CancellationToken ct) =>
+            Results.Ok(await settings.UpdateScreenshotStorageAsync(body, ct))).WithValidation<ScreenshotStorageSettings>().RequirePageEdit("settings.retention");
     }
 }

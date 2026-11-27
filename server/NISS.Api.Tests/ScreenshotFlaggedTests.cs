@@ -350,3 +350,25 @@ public sealed class LegacyPolicyNormalisationTests(ApiFactory factory) : IClassF
         Assert.True(global.Policy.ScreenCapture.Enabled);   // the rest of the stored policy survives
     }
 }
+
+/// <summary>The dashboard overview surfaces a fleet-wide flagged-activity summary (counts + site names, no images).</summary>
+[Collection(ApiCollection.Name)]
+public sealed class OverviewFlaggedSummaryTests(ApiFactory factory) : IClassFixture<ApiFactory>
+{
+    [Fact]
+    public async Task Overview_reports_flagged_captures_today()
+    {
+        var admin = await factory.AdminAsync();
+        var device = await factory.EnrollDeviceAsync(admin, "EMP-OVF");
+        var url = $"/api/v1/devices/screenshots?frameId=ovf-1&monitor=0&width=10&height=10" +
+                  $"&capturedAtUtc={Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("o"))}&sessionUser=alice" +
+                  $"&trigger={ScreenTriggers.Flagged}&flagTerm=youtube.com&matchedOn={FlagMatchKinds.Title}";
+        await device.Client.PostAsync(url, new ByteArrayContent([1, 2, 3]));
+
+        var overview = await admin.GetJsonAsync<OverviewDto>("/api/v1/overview");
+
+        Assert.True(overview.FlaggedToday >= 1);
+        Assert.NotNull(overview.RecentFlagged);
+        Assert.Contains(overview.RecentFlagged!, f => f.FlagTerm == "youtube.com" && f.DeviceId == device.DeviceId);
+    }
+}

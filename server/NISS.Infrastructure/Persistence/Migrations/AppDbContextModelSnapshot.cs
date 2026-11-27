@@ -30,6 +30,18 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AllowedDepartmentsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("allowed_departments_json");
+
+                    b.Property<string>("AllowedEmployeeIdsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("allowed_employee_ids_json");
+
+                    b.Property<string>("AllowedPagesJson")
+                        .HasColumnType("text")
+                        .HasColumnName("allowed_pages_json");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -56,6 +68,12 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("role");
+
+                    b.Property<bool>("ScopeAllEmployees")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("scope_all_employees");
 
                     b.Property<string>("Username")
                         .IsRequired()

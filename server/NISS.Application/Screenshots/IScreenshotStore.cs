@@ -16,6 +16,7 @@ public static class ScreenshotDiskGuard
 /// <param name="ClipId">Groups the frames of one clip; null on a single still.</param>
 /// <param name="ClipSeq">0-based position within the clip.</param>
 /// <param name="ClipTotal">Frames the clip was expected to contain.</param>
+/// <param name="EmployeeName">Full name of the attributed employee, used for the on-disk folder and file name. Null when unattributed (falls back to the device code).</param>
 public sealed record ScreenshotInput(
     Guid DeviceId,
     string DeviceCode,
@@ -31,7 +32,8 @@ public sealed record ScreenshotInput(
     string? MatchedOn = null,
     Guid? ClipId = null,
     int ClipSeq = 0,
-    int ClipTotal = 0);
+    int ClipTotal = 0,
+    string? EmployeeName = null);
 
 /// <summary>Stores periodic screenshots as files on disk plus a metadata row, and deletes them (retention/cleanup).</summary>
 public interface IScreenshotStore

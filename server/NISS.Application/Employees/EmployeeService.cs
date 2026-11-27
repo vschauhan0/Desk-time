@@ -20,11 +20,19 @@ public interface IEmployeeService
 }
 
 internal sealed class EmployeeService(
-    IAppDbContext db, TimeProvider clock, IAuditService audit, IActivityLoader activity, IApplicationUsageService usage) : IEmployeeService
+    IAppDbContext db, TimeProvider clock, IAuditService audit, IActivityLoader activity, IApplicationUsageService usage,
+    Auth.IAccessScopeProvider access) : IEmployeeService
 {
     public async Task<Paged<EmployeeDto>> ListAsync(string? search, string? department, PageRequest page, CancellationToken ct)
     {
         var q = db.Employees.AsNoTracking().AsQueryable();
+        // RBAC: a restricted user only sees the employees they are scoped to.
+        var scope = await access.CurrentAsync(ct);
+        if (!scope.All)
+        {
+            var allowed = scope.EmployeeIds.ToList();
+            q = q.Where(e => allowed.Contains(e.Id));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var like = QueryExtensions.LikeContains(search.Trim());
@@ -36,6 +44,8 @@ internal sealed class EmployeeService(
 
     public async Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct)
     {
+        // A restricted user gets 404 (not 403) for an employee outside their scope, so existence is not revealed.
+        if (!(await access.CurrentAsync(ct)).CanSeeEmployee(id)) throw new NotFoundException("Employee not found.");
         var e = await db.Employees.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("Employee not found.");
         return (await MapAsync([e], ct))[0];
     }

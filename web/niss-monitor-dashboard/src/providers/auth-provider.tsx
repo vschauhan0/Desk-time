@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, isNetworkError, setApiHooks } from "@/lib/api";
 import { loadRuntimeConfig } from "@/lib/config";
 import { roleAtLeast } from "@/lib/roles";
+import { canEditPage, canViewPage, levelOf } from "@/lib/access";
 import { tokenStore } from "@/lib/tokens";
 import type { UserInfo } from "@/lib/types";
 
@@ -131,4 +132,15 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
   return ctx;
+}
+
+/** Per-user page/sub-page access for the signed-in user. SUPERADMIN (null map) can edit everything. */
+export function usePageAccess() {
+  const { user } = useAuth();
+  const map = user?.pageAccess ?? null;
+  return {
+    level: (key: string) => levelOf(map, key),
+    canView: (key: string) => canViewPage(map, key),
+    canEdit: (key: string) => canEditPage(map, key),
+  };
 }

@@ -59,16 +59,107 @@ public sealed record LoginRequest(string Username, string Password);
 public sealed record RefreshRequest(string RefreshToken);
 
 /// <summary>Signed-in user.</summary>
-public sealed record UserInfo(Guid Id, string Username, string DisplayName, string Role);
+/// <summary>
+/// Signed-in user. <paramref name="PageAccess"/> maps page/sub-page key -&gt; <see cref="PageAccess"/> level; null =
+/// EDIT on every page the role allows (SUPERADMIN, or an unrestricted user).
+/// </summary>
+public sealed record UserInfo(Guid Id, string Username, string DisplayName, string Role, IReadOnlyDictionary<string, string>? PageAccess = null);
 
 /// <summary>Login / refresh result.</summary>
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAtUtc, UserInfo User);
 
-/// <summary>Admin user row (SUPERADMIN only). POST/PUT body is <see cref="AdminUserUpsert"/>.</summary>
-public sealed record AdminUserDto(Guid Id, string Username, string DisplayName, string Role, bool Enabled, DateTimeOffset CreatedAtUtc, DateTimeOffset? LastLoginUtc);
+/// <summary>Access a user has to one page or sub-page. HIDDEN = not shown; VIEW = read-only; EDIT = can act.</summary>
+public static class PageAccess
+{
+    public const string Hidden = "HIDDEN";
+    public const string View = "VIEW";
+    public const string Edit = "EDIT";
+
+    public static bool IsLevel(string? v) => v is Hidden or View or Edit;
+    /// <summary>EDIT &gt; VIEW &gt; HIDDEN.</summary>
+    public static int Rank(string? v) => v switch { Edit => 2, View => 1, _ => 0 };
+    public static bool CanView(string? v) => Rank(v) >= 1;
+    public static bool CanEdit(string? v) => Rank(v) >= 2;
+}
+
+/// <summary>
+/// Dashboard user. Access fields are honoured for ADMIN and VIEWER; a SUPERADMIN always has EDIT on every page and
+/// sees every employee. <paramref name="PageAccess"/> is a map of page/sub-page key -&gt; <see cref="PageAccess"/>
+/// level; null = EDIT on every page the role allows. When <paramref name="ScopeAllEmployees"/> is true the
+/// department/employee lists are ignored.
+/// </summary>
+public sealed record AdminUserDto(
+    Guid Id,
+    string Username,
+    string DisplayName,
+    string Role,
+    bool Enabled,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? LastLoginUtc,
+    IReadOnlyDictionary<string, string>? PageAccess = null,
+    bool ScopeAllEmployees = true,
+    IReadOnlyList<string>? AllowedDepartments = null,
+    IReadOnlyList<Guid>? AllowedEmployeeIds = null);
 
 /// <summary>Create/update an admin user. Password required on create, optional on update.</summary>
-public sealed record AdminUserUpsert(string Username, string DisplayName, string Role, bool Enabled, string? Password);
+public sealed record AdminUserUpsert(
+    string Username,
+    string DisplayName,
+    string Role,
+    bool Enabled,
+    string? Password,
+    IReadOnlyDictionary<string, string>? PageAccess = null,
+    bool ScopeAllEmployees = true,
+    IReadOnlyList<string>? AllowedDepartments = null,
+    IReadOnlyList<Guid>? AllowedEmployeeIds = null);
+
+/// <summary>
+/// One page (or sub-page/tab) an admin's access can be set on. <paramref name="Parent"/> is the owning page key for a
+/// sub-page, else null. <paramref name="Editable"/> is true when the page has actions that EDIT level unlocks.
+/// </summary>
+public sealed record AppPageInfo(string Key, string Label, string Route, string Group, string MinRole, string? Parent = null, bool Editable = false);
+
+/// <summary>Canonical catalogue of dashboard pages and sub-pages, used for per-user access. Keys are stable; routes mirror the UI.</summary>
+public static class AppPages
+{
+    public static readonly IReadOnlyList<AppPageInfo> All =
+    [
+        new("overview", "Overview", "/", "Monitor", "VIEWER"),
+        new("live", "Live Monitoring", "/live", "Monitor", "VIEWER"),
+        new("employees", "Employees", "/employees", "People & devices", "VIEWER", Editable: true),
+        new("devices", "Devices", "/devices", "People & devices", "VIEWER", Editable: true),
+        // Device-detail tabs (sub-pages of Devices).
+        new("device.overview", "· Overview tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.activity", "· Activity tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.applications", "· Applications tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.processes", "· Processes tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.metrics", "· Metrics tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.timeline", "· Timeline tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.diagnostics", "· Diagnostics tab", "/devices", "People & devices", "VIEWER", Parent: "devices"),
+        new("device.screens", "· Screens tab (screenshots/live)", "/devices", "People & devices", "SUPERADMIN", Parent: "devices"),
+        new("device-health", "Device Health", "/device-health", "People & devices", "VIEWER"),
+        new("applications", "Application Activity", "/applications", "Activity", "VIEWER"),
+        new("processes", "Process Timeline", "/processes", "Activity", "VIEWER"),
+        new("timeline", "Employee Timeline", "/timeline", "Activity", "VIEWER"),
+        new("active-idle", "Active / Idle", "/active-idle", "Activity", "VIEWER"),
+        new("usb", "USB Events", "/usb", "Events", "VIEWER"),
+        new("files", "File Activity", "/files", "Events", "VIEWER"),
+        new("security", "Security & Agent Health", "/security", "Events", "VIEWER", Editable: true),
+        new("reports", "Reports", "/reports", "Administration", "VIEWER"),
+        new("settings", "Settings", "/settings", "Administration", "ADMIN", Editable: true),
+        // Settings tabs (sub-pages of Settings).
+        new("settings.policies", "· Agent policies", "/settings", "Administration", "ADMIN", Parent: "settings", Editable: true),
+        new("settings.categories", "· Application categories", "/settings", "Administration", "ADMIN", Parent: "settings", Editable: true),
+        new("settings.retention", "· Retention & storage", "/settings", "Administration", "ADMIN", Parent: "settings", Editable: true),
+        new("settings.thresholds", "· Health thresholds", "/settings", "Administration", "ADMIN", Parent: "settings", Editable: true),
+        new("settings.tokens", "· Enrollment tokens", "/settings", "Administration", "ADMIN", Parent: "settings", Editable: true),
+        new("settings.admins", "· Administrators", "/settings", "Administration", "SUPERADMIN", Parent: "settings", Editable: true),
+        new("audit", "Audit Log", "/audit", "Administration", "ADMIN"),
+    ];
+
+    public static readonly IReadOnlySet<string> Keys = All.Select(p => p.Key).ToHashSet();
+    public static AppPageInfo? Find(string key) => All.FirstOrDefault(p => p.Key == key);
+}
 
 // ----- Employees ------------------------------------------------------------------------------
 
@@ -347,7 +438,22 @@ public sealed record HourlyActivity(int Hour, double ActiveSeconds, double IdleS
 /// <summary>Version histogram entry.</summary>
 public sealed record VersionCount(string Version, int Count);
 
+/// <summary>
+/// One recent flagged-activity capture, summarised for the dashboard. Carries no image - the Screens tab
+/// (SUPERADMIN) serves the actual JPEG. <paramref name="FlagTerm"/> is the configured site/app name that matched.
+/// </summary>
+public sealed record FlaggedCaptureDto(
+    Guid Id,
+    string DeviceId,
+    string? EmployeeName,
+    DateTimeOffset CapturedAtUtc,
+    string? FlagTerm,
+    string? MatchedOn,
+    Guid? ClipId);
+
 /// <summary>GET /overview.</summary>
+/// <param name="FlaggedToday">Count of flagged-activity captures across the fleet today.</param>
+/// <param name="RecentFlagged">The most recent flagged captures (one row per clip), newest first.</param>
 public sealed record OverviewDto(
     int TotalDevices,
     int Online,
@@ -363,7 +469,9 @@ public sealed record OverviewDto(
     IReadOnlyList<AppUsageTotal> TopApplicationsToday,
     IReadOnlyList<HourlyActivity> ActivityByHour,
     IReadOnlyList<SecurityEventDto> RecentSecurityEvents,
-    IReadOnlyList<VersionCount> AgentVersions);
+    IReadOnlyList<VersionCount> AgentVersions,
+    int FlaggedToday = 0,
+    IReadOnlyList<FlaggedCaptureDto>? RecentFlagged = null);
 
 /// <summary>Column descriptor for <see cref="ReportResult"/>.</summary>
 public sealed record ReportColumn(string Key, string Label, string Type);
@@ -413,6 +521,13 @@ public sealed record RetentionSettings(
 /// <summary>Server-side monitoring thresholds (seconds unless noted).</summary>
 public sealed record HealthThresholds(int HeartbeatWarningSeconds, int OfflineSeconds, int BacklogWarningThreshold, string? MinAgentVersion);
 
+/// <summary>
+/// Where periodic screenshots and flagged-activity recordings are written on the server.
+/// <paramref name="Root"/> empty = the server default (<c>ScreenshotStorage:Root</c>, or a temp folder). Changing it
+/// affects new captures only; existing files stay under the folder they were written to.
+/// </summary>
+public sealed record ScreenshotStorageSettings(string Root);
+
 /// <summary>POST /enrollment-tokens (ADMIN+). Returned token is shown once.</summary>
 public sealed record EnrollmentTokenRequest(string? EmployeeCode, string? DeviceId, int ExpiresInHours, string? Note);
 
@@ -440,19 +555,6 @@ public sealed record HealthResponse(string Status, string Version, DateTimeOffse
 /// </summary>
 public sealed record DeviceStatusChange(string DeviceId, string Status, string? PreviousStatus, string? Reason, DateTimeOffset AtUtc);
 
-/// <summary>Names of the SignalR client methods, shared so that nobody mistypes them.</summary>
-public static class HubMethods
-{
-    public const string DeviceStateChanged = "DeviceStateChanged";
-    public const string EventIngested = "EventIngested";
-    public const string DeviceStatusChanged = "DeviceStatusChanged";
-    public const string SecurityEventRaised = "SecurityEventRaised";
-    public const string ScreenFrame = "ScreenFrame";
-    public const string Route = "/hubs/monitor";
-}
-
-/// <summary>One live-view frame pushed to a watching dashboard over SignalR (JPEG as base64).</summary>
-public sealed record ScreenFrameMessage(Guid LiveSessionId, int Monitor, string JpegBase64);
 // ---- Agent auto-update (dashboard) ----
 
 /// <summary>An uploaded, verified agent update package.</summary>
@@ -491,3 +593,16 @@ public sealed record CreateRolloutRequest(string Version, string? Notes);
 /// <summary>Devices chosen as the canary group of a rollout.</summary>
 public sealed record CanaryRequest(IReadOnlyList<string> DeviceIds);
 
+/// <summary>Names of the SignalR client methods, shared so that nobody mistypes them.</summary>
+public static class HubMethods
+{
+    public const string DeviceStateChanged = "DeviceStateChanged";
+    public const string EventIngested = "EventIngested";
+    public const string DeviceStatusChanged = "DeviceStatusChanged";
+    public const string SecurityEventRaised = "SecurityEventRaised";
+    public const string ScreenFrame = "ScreenFrame";
+    public const string Route = "/hubs/monitor";
+}
+
+/// <summary>One live-view frame pushed to a watching dashboard over SignalR (JPEG as base64).</summary>
+public sealed record ScreenFrameMessage(Guid LiveSessionId, int Monitor, string JpegBase64);

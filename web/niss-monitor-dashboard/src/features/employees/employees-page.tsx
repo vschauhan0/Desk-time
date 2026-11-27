@@ -15,7 +15,7 @@ import { api } from "@/lib/api";
 import { filtersToQuery } from "@/lib/filters";
 import { deviceStatusTone, presenceTone } from "@/lib/status";
 import type { EmployeeDto, EmployeeUpsert, Paged } from "@/lib/types";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, usePageAccess } from "@/providers/auth-provider";
 
 const PAGE_SIZE = 50;
 
@@ -67,6 +67,9 @@ function EmployeeDialog({ employee, open, onClose, onSaved }: { employee: Employ
 
 export function EmployeesPage() {
   const { isAdmin } = useAuth();
+  const access = usePageAccess();
+  // Editing employees needs EDIT on the Employees page (per-user RBAC), not just the ADMIN role.
+  const canEditEmployees = isAdmin && access.canEdit("employees");
   const { filters, setFilters } = useFilters();
   const query = useMemo(() => filtersToQuery(filters, ["department", "search"]), [filters]);
   const [page, setPage] = usePage(JSON.stringify(query));
@@ -78,7 +81,7 @@ export function EmployeesPage() {
       <PageHeader
         title="Employees"
         subtitle="Presence and status are those of each employee's most recently seen device."
-        actions={isAdmin && <Button variant="primary" icon={Plus} onClick={() => setEditing({ employee: null })}>Add employee</Button>}
+        actions={canEditEmployees && <Button variant="primary" icon={Plus} onClick={() => setEditing({ employee: null })}>Add employee</Button>}
       />
       <FilterBar fields={["department", "search"]} value={filters} onChange={setFilters} searchPlaceholder="Name, code or email..." />
       <DataState loading={loading} error={error} onRetry={() => void mutate()} isEmpty={!!data && data.items.length === 0} emptyTitle="No employees found" emptyHint="Employees are created by an administrator or assigned when a device is enrolled with an employee code.">
@@ -95,7 +98,7 @@ export function EmployeesPage() {
                     <th>Device status</th>
                     <th>Presence</th>
                     <th>Last seen</th>
-                    {isAdmin && <th className="no-print" />}
+                    {canEditEmployees && <th className="no-print" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -112,7 +115,7 @@ export function EmployeesPage() {
                       <td>{e.status ? <StatusPill value={e.status} tone={deviceStatusTone(e.status)} /> : "—"}</td>
                       <td>{e.presence ? <StatusPill value={e.presence} tone={presenceTone(e.presence)} /> : "—"}</td>
                       <td><RelativeTime value={e.lastSeenUtc} /></td>
-                      {isAdmin && (
+                      {canEditEmployees && (
                         <td className="no-print text-right">
                           <Button size="sm" variant="ghost" iconOnly icon={Pencil} aria-label={`Edit ${e.fullName}`} onClick={() => setEditing({ employee: e })} />
                         </td>

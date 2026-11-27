@@ -94,6 +94,12 @@ public sealed class AdminUserUpsertValidator : AbstractValidator<AdminUserUpsert
         RuleFor(x => x.Password!).MinimumLength(10).MaximumLength(128)
             .Must((x, p) => !string.Equals(p, x.Username, StringComparison.OrdinalIgnoreCase)).WithMessage("Password must not equal the username.")
             .When(x => !string.IsNullOrEmpty(x.Password)).WithName("password");
+        // Page-access keys must be known and levels valid; unknown keys/levels are rejected so typos are caught.
+        RuleFor(x => x.PageAccess!).Must(m => m.Keys.All(AppPages.Keys.Contains)).WithMessage("Unknown page key.").When(x => x.PageAccess is not null).WithName("pageAccess");
+        RuleFor(x => x.PageAccess!).Must(m => m.Values.All(PageAccess.IsLevel)).WithMessage("Access level must be HIDDEN, VIEW or EDIT.").When(x => x.PageAccess is not null).WithName("pageAccess");
+        RuleFor(x => x.PageAccess!.Count).LessThanOrEqualTo(AppPages.Keys.Count).When(x => x.PageAccess is not null).WithName("pageAccess");
+        RuleFor(x => x.AllowedDepartments!.Count).LessThanOrEqualTo(500).When(x => x.AllowedDepartments is not null).WithName("allowedDepartments");
+        RuleFor(x => x.AllowedEmployeeIds!.Count).LessThanOrEqualTo(100_000).When(x => x.AllowedEmployeeIds is not null).WithName("allowedEmployeeIds");
     }
 }
 
@@ -219,6 +225,21 @@ public sealed class RetentionSettingsValidator : AbstractValidator<RetentionSett
         // Null means "use the serversettings.json default", so only a supplied value is range-checked.
         RuleFor(x => x.ScreenshotDays!.Value).InclusiveBetween(0, 3650).When(x => x.ScreenshotDays is not null);
         RuleFor(x => x.FlaggedScreenshotDays!.Value).InclusiveBetween(0, 3650).When(x => x.FlaggedScreenshotDays is not null);
+    }
+}
+
+public sealed class ScreenshotStorageSettingsValidator : AbstractValidator<ScreenshotStorageSettings>
+{
+    public ScreenshotStorageSettingsValidator()
+    {
+        // Empty = "use the server default". A set path must be absolute (local drive or UNC) and not absurdly long,
+        // so a typo cannot send captures to an unexpected relative location. Existence is not required up front - the
+        // store creates the folder on first write - but it must look like a rooted path.
+        RuleFor(x => x.Root).MaximumLength(260);
+        RuleFor(x => x.Root)
+            .Must(p => Path.IsPathFullyQualified(p))
+            .When(x => !string.IsNullOrWhiteSpace(x.Root))
+            .WithMessage("Storage path must be an absolute path such as D:\\NISS\\screenshots or \\\\server\\share.");
     }
 }
 

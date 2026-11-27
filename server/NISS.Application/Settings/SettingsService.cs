@@ -19,6 +19,9 @@ public interface ISettingsService
     /// <summary>Monotonic counter that changes whenever a configuration policy changes.</summary>
     Task<int> GetPolicyVersionAsync(CancellationToken ct);
     Task<int> BumpPolicyVersionAsync(CancellationToken ct);
+    /// <summary>The configured screenshot storage root (empty = fall back to <c>ScreenshotStorage:Root</c>/temp).</summary>
+    Task<ScreenshotStorageSettings> GetScreenshotStorageAsync(CancellationToken ct);
+    Task SetScreenshotStorageAsync(ScreenshotStorageSettings value, CancellationToken ct);
     Task<string?> GetRawAsync(string key, CancellationToken ct);
     Task SetRawAsync(string key, string value, CancellationToken ct);
 }
@@ -30,6 +33,7 @@ public static class SettingKeys
     public const string Retention = "retention";
     public const string HealthThresholds = "health_thresholds";
     public const string PolicyVersion = "policy_version";
+    public const string ScreenshotStorage = "screenshot_storage";
 }
 
 internal sealed class SettingsService(
@@ -67,6 +71,12 @@ internal sealed class SettingsService(
         }, ct);
 
     public Task SetThresholdsAsync(HealthThresholds value, CancellationToken ct) => SetJsonAsync(SettingKeys.HealthThresholds, value, ct);
+
+    public async Task<ScreenshotStorageSettings> GetScreenshotStorageAsync(CancellationToken ct) =>
+        await GetJsonAsync(SettingKeys.ScreenshotStorage, () => new ScreenshotStorageSettings(screenshotDefaults.Value.Root ?? ""), ct);
+
+    public Task SetScreenshotStorageAsync(ScreenshotStorageSettings value, CancellationToken ct) =>
+        SetJsonAsync(SettingKeys.ScreenshotStorage, value with { Root = value.Root?.Trim() ?? "" }, ct);
 
     public async Task<int> GetPolicyVersionAsync(CancellationToken ct)
     {
