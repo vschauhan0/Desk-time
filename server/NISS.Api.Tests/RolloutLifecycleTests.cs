@@ -197,29 +197,31 @@ public sealed class RolloutLifecycleTests(ApiFactory factory) : IClassFixture<Ap
     }
 
     [Fact]
-    public async Task Viewer_is_403_on_every_rollout_endpoint()
+    public async Task Non_superadmin_is_403_on_every_rollout_endpoint()
     {
         var superAdmin = await factory.AdminAsync();
-        var client = await factory.UserWithRoleAsync(superAdmin, "VIEWER");
-        var id = Guid.NewGuid();
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostJsonAsync("/api/v1/agent-rollouts", new CreateRolloutRequest("1.2.3.4", null))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostJsonAsync($"/api/v1/agent-rollouts/{id}/canary", new CanaryRequest([]))).StatusCode);
-        foreach (var action in new[] { "rollout", "pause", "rollback" })
-            Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/v1/agent-rollouts/{id}/{action}", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/v1/agent-rollouts/{id}")).StatusCode);
+        foreach (var role in new[] { "VIEWER", "ADMIN" })   // rollout controls are SUPERADMIN-only
+        {
+            var client = await factory.UserWithRoleAsync(superAdmin, role);
+            var id = Guid.NewGuid();
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.PostJsonAsync("/api/v1/agent-rollouts", new CreateRolloutRequest("1.2.3.4", null))).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.PostJsonAsync($"/api/v1/agent-rollouts/{id}/canary", new CanaryRequest([]))).StatusCode);
+            foreach (var action in new[] { "rollout", "pause", "rollback" })
+                Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/v1/agent-rollouts/{id}/{action}", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/v1/agent-rollouts/{id}")).StatusCode);
+        }
     }
 
     [Fact]
-    public async Task Plain_admin_can_run_the_lifecycle_and_each_mutation_is_audited()
+    public async Task Superadmin_can_run_the_lifecycle_and_each_mutation_is_audited()
     {
-        var superAdmin = await factory.AdminAsync();
-        var admin = await factory.UserWithRoleAsync(superAdmin, "ADMIN");
+        var admin = await factory.AdminAsync();   // bootstrap admin is SUPERADMIN
         var v = NewVersion();
         var d = await NewDeviceAsync();
         var rollout = await CanaryAsync(admin, v, d);
         await SeedUpdatedAsync(d, v, Healthy);
         factory.Clock.Advance(TimeSpan.FromHours(25));
-        admin = await factory.UserWithRoleAsync(await factory.AdminAsync(), "ADMIN");   // token expired on the fake clock; log in as a fresh ADMIN
+        admin = await factory.AdminAsync();   // token expired on the fake clock; log in fresh (SUPERADMIN)
         await SeedStatusAsync(d, Healthy);
         Assert.Equal(HttpStatusCode.OK, (await Promote(admin, rollout.Id)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync($"/api/v1/agent-rollouts/{rollout.Id}/pause", null)).StatusCode);

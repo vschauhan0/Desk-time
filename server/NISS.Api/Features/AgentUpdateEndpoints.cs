@@ -56,7 +56,7 @@ public static class AgentUpdateEndpoints
             })
             .RequireAuthorization(AuthDefaults.DevicePolicy).RequireRateLimiting(RateLimiting.Ingest);
 
-        var rollouts = api.MapGroup("/agent-rollouts").RequireAuthorization(AuthDefaults.AdminPolicy);
+        var rollouts = api.MapGroup("/agent-rollouts").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
         rollouts.MapPost("", async (CreateRolloutRequest req, ICurrentUser user, IAgentUpdateService updates, CancellationToken ct) =>
         {
             var rollout = await updates.CreateRolloutAsync(req.Version, req.Notes, user.Username ?? "unknown", ct);
