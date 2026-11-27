@@ -756,6 +756,11 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("package_served_at_utc");
 
+                    b.Property<string>("PackageServedVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("package_served_version");
+
                     b.Property<string>("Phase")
                         .IsRequired()
                         .HasMaxLength(16)

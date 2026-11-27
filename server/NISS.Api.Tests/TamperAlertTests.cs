@@ -67,7 +67,7 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     /// <summary>The server's own rollout targets the device and the device downloads its package: this is what opens the restart window.</summary>
-    private async Task ServePackageAsync(TestDevice d)
+    private async Task<string> ServePackageAsync(TestDevice d)
     {
         await EndRolloutsAsync();
         factory.Clock.Advance(TimeSpan.FromMinutes(1));   // newest live rollout wins
@@ -83,6 +83,7 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
         }
         await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow(), version: "1.0.0.0"));
         Assert.Equal(System.Net.HttpStatusCode.OK, (await d.Client.GetAsync($"/api/v1/agent/update/{version}")).StatusCode);
+        return version;
     }
 
     private async Task<List<SecurityEventDto>> DeliberateStopAsync(HttpClient admin, TestDevice d, string? reason = null)
@@ -117,6 +118,25 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
 
         admin = await factory.AdminAsync();   // the admin token expires with the advanced clock
         var tamper = Assert.Single(await DeliberateStopAsync(admin, d), e => e.Kind == SecurityEventKinds.TamperSuspected);
+        Assert.Equal("CRITICAL", tamper.Severity);
+        await EndRolloutsAsync();
+    }
+
+    [Fact]
+    public async Task Redownloading_the_same_version_does_not_extend_the_restart_window()
+    {
+        var admin = await factory.AdminAsync();
+        var d = await factory.EnrollDeviceAsync(admin, "EMP-TMP7");
+        var version = await ServePackageAsync(d);
+        for (var i = 0; i < 2; i++)   // the agent keeps re-fetching its target to try to hold the window open
+        {
+            factory.Clock.Advance(TimeSpan.FromMinutes(20));
+            await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow(), version: "1.0.0.0"));
+            Assert.Equal(System.Net.HttpStatusCode.OK, (await d.Client.GetAsync($"/api/v1/agent/update/{version}")).StatusCode);
+        }
+        admin = await factory.AdminAsync();   // the admin token expires with the advanced clock
+
+        var tamper = Assert.Single(await DeliberateStopAsync(admin, d), e => e.Kind == SecurityEventKinds.TamperSuspected);   // 40 min after the first serve
         Assert.Equal("CRITICAL", tamper.Severity);
         await EndRolloutsAsync();
     }

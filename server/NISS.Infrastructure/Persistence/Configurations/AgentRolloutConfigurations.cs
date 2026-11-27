@@ -30,6 +30,7 @@ internal sealed class DeviceUpdateStateConfiguration : IEntityTypeConfiguration<
         b.HasOne<Device>().WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
         b.Property(x => x.AssignedVersion).HasMaxLength(64);
         b.Property(x => x.FailedVersion).HasMaxLength(64);
+        b.Property(x => x.PackageServedVersion).HasMaxLength(64);
         b.HasIndex(x => x.FailedVersion);
         b.Property(x => x.Phase).HasMaxLength(16);
         b.Property(x => x.LastError).HasMaxLength(1000);

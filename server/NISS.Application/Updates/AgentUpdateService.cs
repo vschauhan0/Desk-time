@@ -126,7 +126,7 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
 
     /// <summary>
     /// SERVER-AUTHORITATIVE and bounded by a server-recorded event: true only within <c>UpdateRestartWindowMinutes</c> of the server serving this
-    /// device its assigned package (<see cref="DeviceUpdateState.PackageServedAtUtc"/>, written only by <see cref="GetAssignedPackageAsync"/>).
+    /// device its assigned package (<see cref="DeviceUpdateState.PackageServedAtUtc"/>, written only by <see cref="GetAssignedPackageAsync"/> on the first download of a version).
     /// Nothing the agent reports (its version, status phase) can open or extend the window; the FailedVersion quarantine vetoes it.
     /// </summary>
     public async Task<bool> HasAssignedInProgressUpdateAsync(Guid deviceId, CancellationToken ct)
@@ -138,7 +138,6 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
         return clock.GetUtcNow() - served <= window;
     }
 
-
     public async Task<AgentPackage> GetAssignedPackageAsync(Guid deviceId, string version, CancellationToken ct)
     {
         var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw new NotFoundException("Device not found.");
@@ -148,11 +147,16 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
         var package = await db.AgentPackages.AsNoTracking().FirstOrDefaultAsync(p => p.Version == target, ct)
             ?? throw new NotFoundException($"No uploaded package for version {target}.");
 
-        // Server-recorded: this is what opens (and, on a retry, refreshes) the update-restart window for tamper suppression.
+        // Server-recorded: the FIRST download of a version opens the one update-restart window for it. A re-download of the same version
+        // must not refresh it (the agent holds the secret and could otherwise keep suppression open forever).
         var state = await db.DeviceUpdateStates.FirstOrDefaultAsync(s => s.DeviceId == deviceId, ct);
         if (state is null) db.DeviceUpdateStates.Add(state = new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = deviceId, Phase = UpdatePhase.Assigned });
         state.AssignedVersion = target;
-        state.PackageServedAtUtc = clock.GetUtcNow();
+        if (!VersionText.Same(state.PackageServedVersion, target))
+        {
+            state.PackageServedVersion = target;
+            state.PackageServedAtUtc = clock.GetUtcNow();
+        }
         state.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
         return package;

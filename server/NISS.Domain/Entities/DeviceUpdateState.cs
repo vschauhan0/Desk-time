@@ -29,5 +29,7 @@ public sealed class DeviceUpdateState
     public int Attempts { get; set; }
     /// <summary>Set by the SERVER when it serves this device its assigned package (never by the agent). Bounds the update-restart tamper suppression.</summary>
     public DateTimeOffset? PackageServedAtUtc { get; set; }
+    /// <summary>The version whose first download stamped <see cref="PackageServedAtUtc"/> (server-written). A re-download of it does not refresh the window.</summary>
+    public string? PackageServedVersion { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
