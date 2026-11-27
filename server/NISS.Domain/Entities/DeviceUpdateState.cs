@@ -27,5 +27,7 @@ public sealed class DeviceUpdateState
     /// </summary>
     public string? FailedVersion { get; set; }
     public int Attempts { get; set; }
+    /// <summary>Set by the SERVER when it serves this device its assigned package (never by the agent). Bounds the update-restart tamper suppression.</summary>
+    public DateTimeOffset? PackageServedAtUtc { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -752,6 +752,10 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("last_error");
 
+                    b.Property<DateTimeOffset?>("PackageServedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("package_served_at_utc");
+
                     b.Property<string>("Phase")
                         .IsRequired()
                         .HasMaxLength(16)

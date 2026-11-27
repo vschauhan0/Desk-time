@@ -107,4 +107,6 @@ public sealed class AgentUpdateOptions
     public int MaxConcurrentDownloads { get; set; } = 8;
     /// <summary>Retry-After (seconds) sent with a 503 when the download cap is reached.</summary>
     public int DownloadRetryAfterSeconds { get; set; } = 60;
+    /// <summary>How long after the server serves a package a deliberate agent stop is treated as the update restart rather than tamper.</summary>
+    public int UpdateRestartWindowMinutes { get; set; } = 30;
 }

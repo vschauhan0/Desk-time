@@ -174,7 +174,7 @@ public sealed class RolloutTargetingTests(ApiFactory factory) : IClassFixture<Ap
     }
 
     [Fact]
-    public async Task HasAssignedInProgressUpdate_follows_the_server_rollout_not_agent_reported_state()
+    public async Task HasAssignedInProgressUpdate_is_opened_only_by_the_server_serving_the_package_and_expires()
     {
         var device = await NewDeviceAsync("1.0.0.0");
         using (var scope = factory.Scope())
@@ -188,9 +188,17 @@ public sealed class RolloutTargetingTests(ApiFactory factory) : IClassFixture<Ap
             Assert.False(await svc.HasAssignedInProgressUpdateAsync(device.Id, default));
         }
 
-        var rollout = await NewRolloutAsync(NewVersion());
+        var target = NewVersion();
+        var rollout = await NewRolloutAsync(target);
         await SetCanaryAsync(rollout.Id, device.Id);
         using var scope2 = factory.Scope();
-        Assert.True(await scope2.ServiceProvider.GetRequiredService<IAgentUpdateService>().HasAssignedInProgressUpdateAsync(device.Id, default));
+        var updates = scope2.ServiceProvider.GetRequiredService<IAgentUpdateService>();
+        Assert.False(await updates.HasAssignedInProgressUpdateAsync(device.Id, default));   // assigned, but nothing served yet
+
+        await updates.GetAssignedPackageAsync(device.Id, target, default);                  // the server serves it: window opens
+        Assert.True(await updates.HasAssignedInProgressUpdateAsync(device.Id, default));
+
+        factory.Clock.Advance(TimeSpan.FromMinutes(31));
+        Assert.False(await updates.HasAssignedInProgressUpdateAsync(device.Id, default));   // window closed
     }
 }
