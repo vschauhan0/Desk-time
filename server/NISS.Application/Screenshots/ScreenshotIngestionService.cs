@@ -58,6 +58,9 @@ internal sealed class ScreenshotIngestionService(IAppDbContext db, IScreenshotSt
                 u => u.DeviceId == deviceId && u.WindowsUsername == meta.SessionUser && u.EmployeeId != null, ct);
             if (mapped?.EmployeeId is not null) employeeId = mapped.EmployeeId;
         }
+        // The employee's name drives the on-disk folder and file name (Settings -> Screenshots).
+        var employeeName = employeeId is null ? null
+            : await db.Employees.AsNoTracking().Where(e => e.Id == employeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
 
         // An unknown trigger from a newer or tampered agent is normalised rather than trusted into the column.
         var trigger = ScreenTriggers.IsKnown(meta.Trigger) ? meta.Trigger! : ScreenTriggers.Periodic;
@@ -70,7 +73,8 @@ internal sealed class ScreenshotIngestionService(IAppDbContext db, IScreenshotSt
                 flagged ? Trim(meta.MatchedOn, 16) : null,
                 flagged ? meta.ClipId : null,
                 flagged ? Math.Max(0, meta.ClipSeq) : 0,
-                flagged ? Math.Max(0, meta.ClipTotal) : 0),
+                flagged ? Math.Max(0, meta.ClipTotal) : 0,
+                employeeName),
             jpeg, ct);
         return new ScreenshotUploadResult(shot.Id, ScreenshotStatus.Stored);
     }

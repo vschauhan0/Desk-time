@@ -66,6 +66,9 @@ public static class AdminUserEndpoints
     {
         var g = api.MapGroup("/admin-users").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
 
+        // The catalogue of pages access can be granted on, for the admin-user editor.
+        g.MapGet("/pages", () => Results.Ok(AppPages.All));
+
         g.MapGet("", async (IAdminUserService users, CancellationToken ct) => Results.Ok(await users.ListAsync(ct)));
 
         g.MapPost("", async (AdminUserUpsert body, IAdminUserService users, CancellationToken ct) =>

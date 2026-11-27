@@ -132,16 +132,18 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   );
 }
 
-export function Card({ title, actions, children, className, padded = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; padded?: boolean }) {
+export function Card({ title, actions, children, className, padded = true, fill = false, bodyClassName }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; padded?: boolean; fill?: boolean; bodyClassName?: string }) {
+  // fill: the card becomes a flex column whose body grows to the card's height (set by the parent grid/flex cell),
+  // so a chart inside can size to the remaining space. Used by the viewport-fit dashboard.
   return (
-    <section className={clsx("card min-w-0", className)}>
+    <section className={clsx("card min-w-0", fill && "flex h-full flex-col", className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <h2 className="text-[13px] font-semibold">{title}</h2>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <h2 className="truncate text-[13px] font-semibold">{title}</h2>
+          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={padded ? "p-4" : ""}>{children}</div>
+      <div className={clsx(padded && "p-4", fill && "min-h-0 flex-1", bodyClassName)}>{children}</div>
     </section>
   );
 }

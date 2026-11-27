@@ -46,11 +46,32 @@ export interface RefreshRequest {
 
 export type Role = "SUPERADMIN" | "ADMIN" | "VIEWER";
 
+/** Access level for a page or sub-page. */
+export type PageLevel = "HIDDEN" | "VIEW" | "EDIT";
+
+/** Map of page/sub-page key -> level. */
+export type PageAccessMap = Record<string, PageLevel>;
+
 export interface UserInfo {
   id: string;
   username: string;
   displayName: string;
   role: Role;
+  /** Page/sub-page key -> level; null = EDIT on every page the role allows (SUPERADMIN or unrestricted). */
+  pageAccess: PageAccessMap | null;
+}
+
+/** One page or sub-page access can be set on (admin-user editor). */
+export interface AppPageInfo {
+  key: string;
+  label: string;
+  route: string;
+  group: string;
+  minRole: Role;
+  /** Owning page key when this is a sub-page/tab, else null. */
+  parent: string | null;
+  /** True when the page has actions that EDIT unlocks. */
+  editable: boolean;
 }
 
 export interface AuthResponse {
@@ -68,6 +89,11 @@ export interface AdminUserDto {
   enabled: boolean;
   createdAtUtc: IsoString;
   lastLoginUtc: IsoString | null;
+  /** Page/sub-page key -> level; null = EDIT on every page the role allows. */
+  pageAccess: PageAccessMap | null;
+  scopeAllEmployees: boolean;
+  allowedDepartments: string[];
+  allowedEmployeeIds: string[];
 }
 
 export interface AdminUserUpsert {
@@ -76,6 +102,10 @@ export interface AdminUserUpsert {
   role: Role;
   enabled: boolean;
   password: string | null;
+  pageAccess?: PageAccessMap | null;
+  scopeAllEmployees?: boolean;
+  allowedDepartments?: string[];
+  allowedEmployeeIds?: string[];
 }
 
 // ----- Employees -----------------------------------------------------------------------------
@@ -410,6 +440,17 @@ export interface VersionCount {
   count: number;
 }
 
+/** One recent flagged-activity capture for the dashboard. Carries no image; links to the device's Screens tab. */
+export interface FlaggedCaptureDto {
+  id: string;
+  deviceId: string;
+  employeeName: string | null;
+  capturedAtUtc: IsoString;
+  flagTerm: string | null;
+  matchedOn: FlagMatchKind | null;
+  clipId: string | null;
+}
+
 export interface OverviewDto {
   totalDevices: number;
   online: number;
@@ -426,6 +467,8 @@ export interface OverviewDto {
   activityByHour: HourlyActivity[];
   recentSecurityEvents: SecurityEventDto[];
   agentVersions: VersionCount[];
+  flaggedToday: number;
+  recentFlagged: FlaggedCaptureDto[] | null;
 }
 
 export interface ReportColumn {
@@ -556,6 +599,11 @@ export interface RetentionSettings {
   screenshotDays: number;
   /** Flagged screenshots and clips, normally kept longer because they are the evidence. */
   flaggedScreenshotDays: number;
+}
+
+/** Where screenshots/recordings are written on the server. Empty root = server default. */
+export interface ScreenshotStorageSettings {
+  root: string;
 }
 
 export interface HealthThresholds {

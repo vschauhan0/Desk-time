@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/primitives";
 import { ConfirmDialog } from "@/components/ui/widgets";
 import { api } from "@/lib/api";
 import { useAction } from "@/hooks/use-action";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, usePageAccess } from "@/providers/auth-provider";
 import type { EnrollmentTokenDto } from "@/lib/types";
 import { TokenRevealDialog } from "./enrollment-dialogs";
 
@@ -44,6 +44,7 @@ interface Props {
 /** ADMIN+ device actions: disable / enable / revoke / re-enroll. Renders nothing for VIEWER. */
 export function DeviceActions({ deviceId, status, onChanged, size = "sm" }: Props) {
   const { isAdmin } = useAuth();
+  const access = usePageAccess();
   const [pending, setPending] = useState<Pending>(null);
   const [token, setToken] = useState<EnrollmentTokenDto | null>(null);
 
@@ -63,7 +64,8 @@ export function DeviceActions({ deviceId, status, onChanged, size = "sm" }: Prop
     }
   });
 
-  if (!isAdmin) return null;
+  // Device actions need EDIT on the Devices page (per-user RBAC), not just the ADMIN role.
+  if (!isAdmin || !access.canEdit("devices")) return null;
   const revoked = status === "REVOKED";
   const disabled = status === "DISABLED";
 

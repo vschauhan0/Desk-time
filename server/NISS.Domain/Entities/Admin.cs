@@ -11,6 +11,23 @@ public sealed class AdminUser
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
+
+    // ----- Access control (ignored for SUPERADMIN, who always sees everything) -----
+
+    /// <summary>
+    /// JSON array of page keys this user may open (see <c>AppPages</c>). Null = every page their role allows.
+    /// Pages not listed are hidden in the nav and blocked by the route guard.
+    /// </summary>
+    public string? AllowedPagesJson { get; set; }
+
+    /// <summary>True (default) = this user sees every employee. False = limited to the departments/employees below.</summary>
+    public bool ScopeAllEmployees { get; set; } = true;
+
+    /// <summary>JSON array of department names this user may see (used when <see cref="ScopeAllEmployees"/> is false).</summary>
+    public string? AllowedDepartmentsJson { get; set; }
+
+    /// <summary>JSON array of employee ids this user may see, in addition to the departments.</summary>
+    public string? AllowedEmployeeIdsJson { get; set; }
 }
 
 /// <summary>Rotating refresh token (only the hash is stored).</summary>

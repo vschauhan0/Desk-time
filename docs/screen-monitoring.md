@@ -105,6 +105,23 @@ for real-time pacing.
 * Flagged capture works **independently** of automatic screenshots: you can record only flagged activity and keep no
   rolling screenshot trail.
 
+## Where files are stored (configurable)
+
+The storage folder is set at runtime under **Settings → Retention → Screenshot & recording storage** (blank = the
+server default, `ScreenshotStorage:Root`, or a temp folder). Files are laid out by employee, then date:
+
+```
+<root>/<Employee Name>/<yyyy-MM-dd>/<Employee Name>_<yyyy-MM-dd>_<HH-mm-ss>[_monN][_clipNNNN].jpg
+        Aarti Khan/      2026-11-27/   Aarti_Khan_2026-11-27_14-03-27.jpg
+```
+
+- The employee folder/name falls back to the **device code** when the capture is unattributed.
+- Names are sanitised (spaces → `_`, invalid characters removed). `_monN` appears for a specific monitor; `_clipNNNN`
+  numbers a flagged clip's frames. A short id tail is added only if a name is already taken, so two captures never
+  collide.
+- Changing the root affects **new** captures only. Files already written stay under the folder they were written to;
+  if you move the root, the old files are no longer reachable through the dashboard (move them yourself if needed).
+
 ## Retention (automatic deletion)
 
 The nightly retention job deletes the JPEG **files as well as the database rows**. Periodic and flagged captures

@@ -23,7 +23,7 @@ import { filtersToQuery } from "@/lib/filters";
 import { formatDateTime, formatGigabytes, formatMegabytes, humanize } from "@/lib/format";
 import { deviceStatusTone } from "@/lib/status";
 import type { DeviceDetail as DeviceDetailDto, EventDto, Paged, SystemMetricDto, TimelineItem } from "@/lib/types";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, usePageAccess } from "@/providers/auth-provider";
 import { useMonitorHub } from "@/providers/signalr-provider";
 import { useLiveStore } from "@/store/live-store";
 import { DeviceActions } from "./device-actions";
@@ -212,9 +212,14 @@ export function DeviceDetail() {
   const router = useRouter();
   const search = useSearchParams();
   const { isSuperAdmin } = useAuth();
-  const tabs = useMemo(() => (isSuperAdmin ? [...TABS, SCREENS_TAB] : TABS), [isSuperAdmin]);
+  const access = usePageAccess();
+  // Each tab maps to a device.<key> sub-page; hide the ones this user cannot view.
+  const tabs = useMemo(() => {
+    const all = isSuperAdmin ? [...TABS, SCREENS_TAB] : TABS;
+    return all.filter((t) => access.canView(`device.${t.key}`));
+  }, [isSuperAdmin, access]);
   const tabParam = search.get("tab");
-  const tab: TabKey = tabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : "overview";
+  const tab: TabKey = tabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : (tabs[0]?.key ?? "overview");
   const { data, error, loading, mutate } = useApi<DeviceDetailDto>(`/devices/${encodeURIComponent(deviceId)}`, undefined, { refreshInterval: 30_000 });
 
   const s = data?.summary;

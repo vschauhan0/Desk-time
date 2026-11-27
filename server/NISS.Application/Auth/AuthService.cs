@@ -105,7 +105,87 @@ internal sealed class AuthService(
         return new AuthResponse(access, raw, expires, info);
     }
 
-    internal static UserInfo ToInfo(AdminUser u) => new(u.Id, u.Username, u.DisplayName, u.Role);
+    internal static UserInfo ToInfo(AdminUser u) => new(u.Id, u.Username, u.DisplayName, u.Role, RbacMapping.EffectivePageAccess(u));
+}
+
+/// <summary>Serialises the admin RBAC fields to/from their JSON columns and resolves effective page access.</summary>
+internal static class RbacMapping
+{
+    public static IReadOnlyList<Guid>? ReadGuids(string? json) => Read<Guid>(json);
+    public static IReadOnlyList<string>? ReadStrings(string? json) => Read<string>(json);
+
+    private static IReadOnlyList<T>? Read<T>(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<T>>(json, ProtocolJson.Options); }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    public static string? Write<T>(IReadOnlyList<T>? values) =>
+        values is null ? null : System.Text.Json.JsonSerializer.Serialize(values, ProtocolJson.Options);
+
+    /// <summary>
+    /// Reads the stored page-access map. Accepts the current object form (<c>{key: level}</c>) and, for backward
+    /// compatibility, the earlier array form (a list of page keys = VIEW on each). Null/blank = no restriction.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string>? ReadPageAccess(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var map = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json, ProtocolJson.Options);
+            if (map is not null) return map;
+        }
+        catch (System.Text.Json.JsonException) { /* try the legacy array form */ }
+        var legacy = Read<string>(json);
+        return legacy?.ToDictionary(k => k, _ => PageAccess.View);
+    }
+
+    /// <summary>
+    /// The effective page-access map: null (EDIT everywhere) for a SUPERADMIN or an unrestricted user; otherwise the
+    /// stored map limited to known, role-reachable keys. Levels above the role's reach are dropped.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string>? EffectivePageAccess(AdminUser u)
+    {
+        if (u.Role == Roles.SuperAdmin) return null;
+        var stored = ReadPageAccess(u.AllowedPagesJson);
+        if (stored is null) return null;
+        var result = new Dictionary<string, string>();
+        foreach (var (key, level) in stored)
+        {
+            var page = AppPages.Find(key);
+            if (page is null || !Roles.AtLeast(u.Role, page.MinRole)) continue;
+            if (PageAccess.IsLevel(level) && level != PageAccess.Hidden) result[key] = level;
+        }
+        return result;
+    }
+
+    /// <summary>Normalises an incoming access map for storage: known role-reachable keys only, HIDDEN dropped. Null stays null.</summary>
+    public static string? NormalizePageAccess(IReadOnlyDictionary<string, string>? map, string role)
+    {
+        if (map is null || role == Roles.SuperAdmin) return null;
+        var cleaned = new Dictionary<string, string>();
+        foreach (var (key, level) in map)
+        {
+            var page = AppPages.Find(key);
+            if (page is null || !Roles.AtLeast(role, page.MinRole)) continue;
+            if (level is PageAccess.View or PageAccess.Edit) cleaned[key] = level;
+        }
+        return System.Text.Json.JsonSerializer.Serialize(cleaned, ProtocolJson.Options);
+    }
+
+    /// <summary>
+    /// The access level for one page/sub-page given a resolved map (null = unrestricted = EDIT). A sub-page with no
+    /// explicit entry inherits its parent's level; a top-level page with no entry is HIDDEN.
+    /// </summary>
+    public static string LevelOf(IReadOnlyDictionary<string, string>? map, string key)
+    {
+        if (map is null) return PageAccess.Edit; // unrestricted
+        if (map.TryGetValue(key, out var level)) return level;
+        var page = AppPages.Find(key);
+        if (page?.Parent is { } parent && map.TryGetValue(parent, out var pLevel)) return pLevel;
+        return PageAccess.Hidden;
+    }
 }
 
 /// <summary>SUPERADMIN-only administration of dashboard users.</summary>
@@ -119,20 +199,25 @@ public interface IAdminUserService
 
 internal sealed class AdminUserService(IAppDbContext db, IPasswordService passwords, IAuditService audit, TimeProvider clock, ICurrentUser current) : IAdminUserService
 {
-    public async Task<IReadOnlyList<AdminUserDto>> ListAsync(CancellationToken ct) =>
-        await db.AdminUsers.AsNoTracking().OrderBy(u => u.Username)
-            .Select(u => new AdminUserDto(u.Id, u.Username, u.DisplayName, u.Role, u.Enabled, u.CreatedAt, u.LastLoginAt)).ToListAsync(ct);
+    public async Task<IReadOnlyList<AdminUserDto>> ListAsync(CancellationToken ct)
+    {
+        // Materialise first: the RBAC columns are JSON that is deserialised in memory, not translatable to SQL.
+        var rows = await db.AdminUsers.AsNoTracking().OrderBy(u => u.Username).ToListAsync(ct);
+        return rows.Select(ToDto).ToList();
+    }
 
     public async Task<AdminUserDto> CreateAsync(AdminUserUpsert r, CancellationToken ct)
     {
         var username = r.Username.Trim();
         if (await db.AdminUsers.AnyAsync(u => u.Username.ToLower() == username.ToLower(), ct)) throw new ConflictException($"User {username} already exists.");
         if (string.IsNullOrEmpty(r.Password)) throw new BadRequestException("Password is required when creating a user.", nameof(r.Password));
+        var role = r.Role.Trim().ToUpperInvariant();
         var user = new AdminUser
         {
-            Id = Guid.NewGuid(), Username = username, DisplayName = r.DisplayName.Trim(), Role = r.Role.Trim().ToUpperInvariant(), Enabled = r.Enabled,
+            Id = Guid.NewGuid(), Username = username, DisplayName = r.DisplayName.Trim(), Role = role, Enabled = r.Enabled,
             PasswordHash = passwords.Hash(r.Password), CreatedAt = clock.GetUtcNow(),
         };
+        ApplyScope(user, r);
         db.AdminUsers.Add(user);
         audit.Record(AuditActions.AdminUserCreated, username, $"role {user.Role}");
         await db.SaveChangesAsync(ct);
@@ -151,6 +236,7 @@ internal sealed class AdminUserService(IAppDbContext db, IPasswordService passwo
             throw new ConflictException("At least one enabled SUPERADMIN must remain.");
 
         user.Username = username; user.DisplayName = r.DisplayName.Trim(); user.Role = role; user.Enabled = r.Enabled;
+        ApplyScope(user, r);
         var passwordChanged = !string.IsNullOrEmpty(r.Password);
         if (passwordChanged)
         {
@@ -175,5 +261,37 @@ internal sealed class AdminUserService(IAppDbContext db, IPasswordService passwo
         await db.SaveChangesAsync(ct);
     }
 
-    private static AdminUserDto ToDto(AdminUser u) => new(u.Id, u.Username, u.DisplayName, u.Role, u.Enabled, u.CreatedAt, u.LastLoginAt);
+    private static AdminUserDto ToDto(AdminUser u) => new(
+        u.Id, u.Username, u.DisplayName, u.Role, u.Enabled, u.CreatedAt, u.LastLoginAt,
+        RbacMapping.ReadPageAccess(u.AllowedPagesJson),
+        u.Role == Roles.SuperAdmin || u.ScopeAllEmployees,
+        RbacMapping.ReadStrings(u.AllowedDepartmentsJson) ?? [],
+        RbacMapping.ReadGuids(u.AllowedEmployeeIdsJson) ?? []);
+
+    /// <summary>Writes the access-control fields from an upsert. A SUPERADMIN is always unrestricted, so scoping is cleared.</summary>
+    private static void ApplyScope(AdminUser user, AdminUserUpsert r)
+    {
+        if (user.Role == Roles.SuperAdmin)
+        {
+            user.AllowedPagesJson = null;
+            user.ScopeAllEmployees = true;
+            user.AllowedDepartmentsJson = null;
+            user.AllowedEmployeeIdsJson = null;
+            return;
+        }
+        user.AllowedPagesJson = RbacMapping.NormalizePageAccess(r.PageAccess, user.Role);
+        user.ScopeAllEmployees = r.ScopeAllEmployees;
+        if (r.ScopeAllEmployees)
+        {
+            user.AllowedDepartmentsJson = null;
+            user.AllowedEmployeeIdsJson = null;
+        }
+        else
+        {
+            var depts = r.AllowedDepartments?.Select(d => d.Trim()).Where(d => d.Length > 0).Distinct().ToList();
+            var emps = r.AllowedEmployeeIds?.Distinct().ToList();
+            user.AllowedDepartmentsJson = RbacMapping.Write(depts);
+            user.AllowedEmployeeIdsJson = RbacMapping.Write(emps);
+        }
+    }
 }

@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<IDeviceQueryService, DeviceQueryService>();
+        services.AddScoped<IAccessScopeProvider, AccessScopeProvider>();
         services.AddScoped<IScopeResolver, ScopeResolver>();
         services.AddScoped<IActivityLoader, ActivityLoader>();
         services.AddScoped<IApplicationUsageService, ApplicationUsageService>();

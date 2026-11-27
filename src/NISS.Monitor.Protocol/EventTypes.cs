@@ -129,6 +129,18 @@ public static class Roles
     public const string SuperAdmin = "SUPERADMIN";
     public const string Admin = "ADMIN";
     public const string Viewer = "VIEWER";
+
+    /// <summary>Ordering rank; higher is more privileged. Unknown roles rank 0.</summary>
+    public static int Rank(string? role) => (role?.ToUpperInvariant()) switch
+    {
+        SuperAdmin => 3,
+        Admin => 2,
+        Viewer => 1,
+        _ => 0,
+    };
+
+    /// <summary>True when <paramref name="role"/> is at least as privileged as <paramref name="minimum"/>.</summary>
+    public static bool AtLeast(string? role, string minimum) => Rank(role) >= Rank(minimum);
 }
 
 /// <summary>Security / agent-health event kinds raised by the server.</summary>

@@ -7,8 +7,40 @@ import { DataState } from "@/components/ui/states";
 import { useAction } from "@/hooks/use-action";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/lib/api";
-import type { HealthThresholds, RetentionSettings } from "@/lib/types";
+import type { HealthThresholds, RetentionSettings, ScreenshotStorageSettings } from "@/lib/types";
 import { NumberField } from "./form-fields";
+
+function StorageForm({ initial, onSaved }: { initial: ScreenshotStorageSettings; onSaved: () => void }) {
+  const [root, setRoot] = useState(initial.root);
+  const [saved, setSaved] = useState(false);
+  const save = useAction(api.saveScreenshotStorage);
+  return (
+    <Card title="Screenshot & recording storage">
+      <div className="space-y-4">
+        <p className="text-[13px] text-muted">
+          Folder on the server where screenshots and flagged-activity recordings are written, organised as{" "}
+          <span className="mono">&lt;employee&gt;/&lt;date&gt;/&lt;employee&gt;_&lt;date&gt;_&lt;time&gt;.jpg</span>. Leave
+          blank to use the server default. Changing this affects new captures only.
+        </p>
+        {save.error && <Notice tone="danger">{save.error}</Notice>}
+        {saved && <Notice tone="ok">Storage location saved.</Notice>}
+        <Field label="Storage folder">
+          <input className="field mono" value={root} placeholder="D:\NISS\screenshots  (blank = default)" onChange={(e) => { setSaved(false); setRoot(e.target.value); }} />
+        </Field>
+        <Button variant="primary" icon={Save} loading={save.pending} onClick={() => void save.run({ root }).then((r) => { if (r) { setSaved(true); onSaved(); } })}>Save storage location</Button>
+      </div>
+    </Card>
+  );
+}
+
+export function ScreenshotStoragePanel() {
+  const { data, error, loading, mutate } = useApi<ScreenshotStorageSettings>("/settings/screenshot-storage");
+  return (
+    <DataState loading={loading} error={error} onRetry={() => void mutate()}>
+      {data && <StorageForm key={data.root} initial={data} onSaved={() => void mutate()} />}
+    </DataState>
+  );
+}
 
 function RetentionForm({ initial, onSaved }: { initial: RetentionSettings; onSaved: () => void }) {
   const [v, setV] = useState(initial);

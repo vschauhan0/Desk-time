@@ -27,7 +27,7 @@ public interface IScreenshotQueryService
     Task<ScreenshotClipDto> GetClipAsync(string deviceCode, Guid clipId, CancellationToken ct);
 }
 
-internal sealed class ScreenshotQueryService(IAppDbContext db, IScreenshotStore store, IAuditService audit) : IScreenshotQueryService
+internal sealed class ScreenshotQueryService(IAppDbContext db, IScreenshotStore store, IAuditService audit, Auth.IAccessScopeProvider access) : IScreenshotQueryService
 {
     public async Task<Paged<ScreenshotDto>> ListAsync(string deviceCode, DateTimeOffset? from, DateTimeOffset? to, string? trigger,
         bool includeClipFrames, PageRequest page, CancellationToken ct)
@@ -77,7 +77,12 @@ internal sealed class ScreenshotQueryService(IAppDbContext db, IScreenshotStore 
         return new ScreenshotFile(store.OpenRead(shot), shot.CapturedAtUtc);
     }
 
-    private async Task<Device> ResolveAsync(string deviceCode, CancellationToken ct) =>
-        await db.Devices.FirstOrDefaultAsync(d => d.DeviceCode == deviceCode, ct)
-        ?? throw new NotFoundException("Device not found.");
+    private async Task<Device> ResolveAsync(string deviceCode, CancellationToken ct)
+    {
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceCode == deviceCode, ct)
+            ?? throw new NotFoundException("Device not found.");
+        // RBAC: a restricted user cannot read screenshots from a device outside their scope.
+        if (!(await access.CurrentAsync(ct)).CanSeeDevice(device.Id)) throw new NotFoundException("Device not found.");
+        return device;
+    }
 }

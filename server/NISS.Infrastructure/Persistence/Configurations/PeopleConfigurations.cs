@@ -56,6 +56,11 @@ internal sealed class AdminUserConfiguration : IEntityTypeConfiguration<AdminUse
         b.HasKey(u => u.Id);
         b.Property(u => u.Id).ValueGeneratedNever();
         b.HasIndex(u => u.Username).IsUnique();
+        // RBAC: page/department/employee access stored as JSON text. Null = unrestricted.
+        b.Property(u => u.AllowedPagesJson).HasColumnType("text");
+        b.Property(u => u.AllowedDepartmentsJson).HasColumnType("text");
+        b.Property(u => u.AllowedEmployeeIdsJson).HasColumnType("text");
+        b.Property(u => u.ScopeAllEmployees).HasDefaultValue(true);
     }
 }
 

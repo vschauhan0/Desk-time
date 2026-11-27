@@ -12,7 +12,7 @@ import { SignalRProvider } from "@/providers/signalr-provider";
 import { roleAtLeast } from "@/lib/roles";
 import { useLiveStore, type HubState } from "@/store/live-store";
 import { Brand } from "./brand";
-import { NAV, isActivePath } from "./nav";
+import { NAV, NAV_ITEMS, isActivePath, isPageAllowed, pageKeyForPath } from "./nav";
 
 // ----- Theme toggle ------------------------------------------------------------------------------
 
@@ -87,7 +87,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Brand />
       </div>
       {NAV.map((group) => {
-        const items = group.items.filter((i) => !i.minRole || roleAtLeast(user?.role, i.minRole));
+        const items = group.items.filter(
+          (i) => (!i.minRole || roleAtLeast(user?.role, i.minRole)) && isPageAllowed(user?.pageAccess, i.key),
+        );
         if (items.length === 0) return null;
         return (
           <div key={group.title}>
@@ -184,8 +186,36 @@ function Shell({ children }: { children: ReactNode }) {
         )}
 
         <main id="main" tabIndex={-1} className="app-main mx-auto w-full max-w-[1500px] flex-1 p-4 sm:p-6">
-          {children}
+          <PageAccessGuard>{children}</PageAccessGuard>
         </main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Blocks a page the signed-in user is not allowed to open (by role or by their per-user page access), redirecting to
+ * their first available page. A detail route not in the catalogue is allowed here; its data is scoped server-side.
+ */
+function PageAccessGuard({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const key = pageKeyForPath(pathname);
+  const item = NAV_ITEMS.find((i) => i.key === key);
+  const allowed = !item || ((!item.minRole || roleAtLeast(user?.role, item.minRole)) && isPageAllowed(user?.pageAccess, key));
+  const fallback = NAV_ITEMS.find((i) => (!i.minRole || roleAtLeast(user?.role, i.minRole)) && isPageAllowed(user?.pageAccess, i.key));
+
+  useEffect(() => {
+    if (!allowed && fallback && fallback.href !== pathname) router.replace(fallback.href);
+  }, [allowed, fallback, pathname, router]);
+
+  if (allowed) return <>{children}</>;
+  return (
+    <div className="grid min-h-[50vh] place-items-center text-center">
+      <div>
+        <p className="text-[15px] font-semibold">This page is not available to your account</p>
+        <p className="mt-1 text-[13px] text-muted">Your administrator controls which pages you can open.</p>
       </div>
     </div>
   );

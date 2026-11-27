@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -98,6 +99,24 @@ public static class EndpointExtensions
 {
     public static RouteHandlerBuilder WithValidation<T>(this RouteHandlerBuilder builder) where T : class =>
         builder.AddEndpointFilter<ValidationFilter<T>>();
+
+    /// <summary>Requires EDIT access to the given page/sub-page (per-user RBAC). SUPERADMIN always passes; a 403 otherwise.</summary>
+    public static RouteHandlerBuilder RequirePageEdit(this RouteHandlerBuilder builder, string pageKey) =>
+        builder.AddEndpointFilter(async (ctx, next) =>
+        {
+            var access = ctx.HttpContext.RequestServices.GetRequiredService<NISS.Application.Auth.IAccessScopeProvider>();
+            await access.RequireEditAsync(pageKey, ctx.HttpContext.RequestAborted);
+            return await next(ctx);
+        });
+
+    /// <summary>Requires at least VIEW access to the given page/sub-page.</summary>
+    public static RouteHandlerBuilder RequirePageView(this RouteHandlerBuilder builder, string pageKey) =>
+        builder.AddEndpointFilter(async (ctx, next) =>
+        {
+            var access = ctx.HttpContext.RequestServices.GetRequiredService<NISS.Application.Auth.IAccessScopeProvider>();
+            await access.RequireViewAsync(pageKey, ctx.HttpContext.RequestAborted);
+            return await next(ctx);
+        });
 }
 
 /// <summary>CORS: the dashboard is served on <c>Dashboard:Port</c> of any host, so any origin with that port is allowed (with credentials).</summary>

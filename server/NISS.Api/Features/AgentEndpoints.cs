@@ -60,12 +60,12 @@ public static class EnrollmentTokenEndpoints
         {
             var token = await enrollment.CreateTokenAsync(body, ct);
             return Results.Created($"/api/v1/enrollment-tokens/{token.Id}", token);
-        }).WithValidation<EnrollmentTokenRequest>();
+        }).WithValidation<EnrollmentTokenRequest>().RequirePageEdit("settings.tokens");
 
         g.MapDelete("/{id:guid}", async (Guid id, IEnrollmentService enrollment, CancellationToken ct) =>
         {
             await enrollment.DeleteTokenAsync(id, ct);
             return Results.NoContent();
-        });
+        }).RequirePageEdit("settings.tokens");
     }
 }

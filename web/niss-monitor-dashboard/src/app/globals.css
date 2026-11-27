@@ -417,6 +417,29 @@ select.field {
   box-shadow: var(--shadow-pop);
 }
 
+/*
+ * Viewport-fit dashboard: on a desktop tall enough to hold it, the overview fills the space under the header with no
+ * page scroll (the app header is 56px; the main padding is 24px top+bottom at sm). On shorter or narrower screens it
+ * falls back to normal document flow so nothing gets crushed. Children use min-h-0 + flex to divide the height.
+ */
+.viewport-fit {
+  min-height: 0;
+}
+@media (min-width: 1024px) and (min-height: 820px) {
+  .viewport-fit {
+    height: calc(100dvh - 56px - 3rem);
+  }
+}
+
+/* Live table: a device row table that scrolls inside a height-constrained shell (sticky header stays put). */
+.data-table th[data-sortable="true"] {
+  cursor: pointer;
+  user-select: none;
+}
+.data-table th[data-sortable="true"]:hover {
+  color: var(--fg);
+}
+
 /* Print: reports render as a clean sheet */
 @media print {
   .no-print {
