@@ -150,4 +150,13 @@ public static class SecurityEventKinds
     public const string DeviceRevoked = "DEVICE_REVOKED";
     public const string ClockSkew = "CLOCK_SKEW";
     public const string CollectorFailure = "COLLECTOR_FAILURE";
+    /// <summary>An agent update failed or was rolled back on a device.</summary>
+    public const string UpdateFailed = "UPDATE_FAILED";
+}
+
+/// <summary>Reasons recorded when the agent stops; shared so the server can recognise an update-driven restart.</summary>
+public static class StopReasons
+{
+    /// <summary>The agent was stopped by the updater to install a new version - not tampering.</summary>
+    public const string UpdateRestart = "UPDATE_RESTART";
 }

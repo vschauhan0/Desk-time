@@ -99,12 +99,32 @@ public sealed record HeartbeatRequest(
 /// <summary>Heartbeat response. <see cref="ServerTimeUtc"/> is used by the agent to measure clock drift.</summary>
 /// <param name="DeviceStatus">ACTIVE, DISABLED or REVOKED. The agent stops collecting/uploading unless ACTIVE.</param>
 /// <param name="ConfigVersion">If greater than the agent's version it should GET /api/v1/agent/config.</param>
+/// <param name="TargetAgentVersion">Version this device has been assigned by a rollout; null when no update is pending.
+/// Trailing and optional so older agents/servers that omit it still round-trip.</param>
+/// <param name="UpdateUrl">Where to download the package for <paramref name="TargetAgentVersion"/>.</param>
 public sealed record HeartbeatResponse(
     DateTimeOffset ServerTimeUtc,
     string DeviceStatus,
     int ConfigVersion,
     string? MinAgentVersion,
-    string? LatestAgentVersion);
+    string? LatestAgentVersion,
+    string? TargetAgentVersion = null,
+    string? UpdateUrl = null);
+
+/// <summary>One file in an update package; <paramref name="Sha256"/> is lowercase hex of the file contents.</summary>
+public sealed record ManifestFile(string Path, string Sha256);
+
+/// <summary>manifest.json inside an agent update package.</summary>
+public sealed record ReleaseManifest(
+    string Version,
+    string? MinOs,
+    IReadOnlyList<ManifestFile> Files,
+    bool WatchdogChanged,
+    string? Notes);
+
+/// <summary>Agent-to-server update progress report.
+/// <paramref name="Phase"/>: downloading | verifying | installing | health_check | updated | failed | rolled_back.</summary>
+public sealed record UpdateStatusReport(string Version, string Phase, string? Error, int Attempt);
 
 /// <summary>State of one collector inside the agent.</summary>
 public sealed record CollectorStatus(string Name, string State, string? LastError, DateTimeOffset? LastEventUtc);

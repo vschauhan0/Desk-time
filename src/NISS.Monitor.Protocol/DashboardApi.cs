@@ -453,3 +453,41 @@ public static class HubMethods
 
 /// <summary>One live-view frame pushed to a watching dashboard over SignalR (JPEG as base64).</summary>
 public sealed record ScreenFrameMessage(Guid LiveSessionId, int Monitor, string JpegBase64);
+// ---- Agent auto-update (dashboard) ----
+
+/// <summary>An uploaded, verified agent update package.</summary>
+public sealed record AgentPackageDto(
+    string Version,
+    long SizeBytes,
+    string Sha256,
+    string? SignerSubject,
+    string? UploadedBy,
+    DateTimeOffset UploadedAtUtc,
+    string? Notes);
+
+/// <summary>A rollout of one package version, with per-device outcome counts.</summary>
+public sealed record AgentRolloutDto(
+    string Id,
+    string Version,
+    string State,
+    DateTimeOffset CreatedAtUtc,
+    int Canary,
+    int Updated,
+    int Failed,
+    int Pending);
+
+/// <summary>Update state of one device.</summary>
+public sealed record DeviceUpdateStateDto(
+    string DeviceId,
+    string? AssignedVersion,
+    string Phase,
+    string? LastError,
+    string? FailedVersion,
+    DateTimeOffset? UpdatedAtUtc);
+
+/// <summary>POST a new rollout for an uploaded package version.</summary>
+public sealed record CreateRolloutRequest(string Version, string? Notes);
+
+/// <summary>Devices chosen as the canary group of a rollout.</summary>
+public sealed record CanaryRequest(IReadOnlyList<string> DeviceIds);
+
