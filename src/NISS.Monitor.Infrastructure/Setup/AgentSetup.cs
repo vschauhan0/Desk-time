@@ -144,6 +144,20 @@ public static class AgentSetup
         log?.Invoke($"{serviceName} locked: administrators can no longer stop or delete it with the usual tools");
     }
 
+    /// <summary>Argument string for <c>sc.exe</c> that repoints a service at a different executable (the side-by-side
+    /// update switch). Only <c>binPath=</c> is touched: start type, account and recovery settings stay as installed.</summary>
+    public static string ScConfigBinPathArgs(string serviceName, string exePath) => $"config {serviceName} binPath= \"{exePath}\"";
+
+    /// <summary>Repoint <paramref name="serviceName"/> at <paramref name="exePath"/> and then RE-APPLY the hardened DACL.
+    /// Never weakens the ACL: the caller (the SYSTEM watchdog) already holds change-config, so no unhardening is needed,
+    /// and the DACL is asserted again afterwards so a reconfigure can never leave the service less protected.</summary>
+    public static void SwitchServiceBinPath(string serviceName, string exePath, Action<string>? log = null)
+    {
+        if (!File.Exists(exePath)) throw new FileNotFoundException("Service executable not found", exePath);
+        Check(Run("sc.exe", ScConfigBinPathArgs(serviceName, exePath)), "sc config binPath");
+        HardenServiceAcl(serviceName, log);
+    }
+
     /// <summary>Restore the default service DACL (administrators full control). Best-effort - used by the agent's own
     /// elevated stop/delete/reconfigure paths so they keep working against an already-hardened service.</summary>
     public static void UnhardenServiceAcl(string serviceName = ServiceName)

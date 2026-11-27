@@ -8,8 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Deliberately minimal: only what's needed to watch and (re)start one named Windows service. -->
+    <!-- Watches/restarts the main service and runs agent updates. -->
     <ProjectReference Include="..\NISS.Monitor.Core\NISS.Monitor.Core.csproj" />
+    <!-- Update host + device-auth channel (the watchdog owns agent updates); also supplies WindowsServiceStateController. -->
+    <ProjectReference Include="..\NISS.Monitor.Infrastructure\NISS.Monitor.Infrastructure.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="10.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
@@ -18,9 +20,5 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Shared with NISS.Monitor.Infrastructure - kept a plain link (no project reference) so this stays a small, single-purpose binary. -->
-    <Compile Include="..\NISS.Monitor.Infrastructure\Setup\WindowsServiceStateController.cs" Link="Shared\WindowsServiceStateController.cs" />
-  </ItemGroup>
 
 </Project>

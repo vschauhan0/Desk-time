@@ -10,6 +10,7 @@ public sealed class AgentSettings
     public StorageSettings Storage { get; set; } = new();
     public SessionSettings Session { get; set; } = new();
     public EnrollmentSettings Enrollment { get; set; } = new();
+    public UpdateSettings Update { get; set; } = new();
 }
 
 /// <summary>Optional unattended enrollment. The token is single-use; normally the installer runs <c>NISSAgent --enroll</c> instead.</summary>
@@ -107,4 +108,20 @@ public sealed class AgentPaths
         Directory.CreateDirectory(LogsDirectory);
         Directory.CreateDirectory(DiagnosticsDirectory);
     }
+}
+
+/// <summary>Agent auto-update (read by the watchdog). Updates are refused unless a publisher subject is configured.</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>Accepted Authenticode signer subjects (exact leaf subject, any-of-N for certificate rotation), e.g. "CN=NISS Agent Publisher".</summary>
+    public string[] AcceptedPublisherSubjects { get; set; } = [];
+
+    /// <summary>How often the watchdog checks for an assigned target version.</summary>
+    public int PollSeconds { get; set; } = 60;
+
+    /// <summary>Maximum random per-device wait before downloading, so a fleet's package pulls spread out.</summary>
+    public int DownloadJitterMaxSeconds { get; set; } = 300;
+
+    /// <summary>Dev only: allow a non-TLS download URL.</summary>
+    public bool AllowInsecureHttp { get; set; }
 }

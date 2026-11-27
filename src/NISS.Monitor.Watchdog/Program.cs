@@ -4,6 +4,10 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Logging;
 using NISS.Monitor.Core;
 using NISS.Monitor.Core.Abstractions;
+using NISS.Monitor.Core.Configuration;
+using NISS.Monitor.Infrastructure.Http;
+using NISS.Monitor.Infrastructure.Identity;
+using NISS.Monitor.Infrastructure.Persistence;
 using NISS.Monitor.Infrastructure.Setup;
 using Serilog;
 
@@ -38,6 +42,17 @@ public static class Program
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IServiceStateController, WindowsServiceStateController>();
         builder.Services.AddHostedService<WatchdogWorker>();
+
+        // Auto-update: own device-authenticated channel + update host (see UpdateWorker).
+        builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "agentsettings.json"), optional: true)
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "agentsettings.local.json"), optional: true);
+        builder.Services.Configure<AgentSettings>(builder.Configuration.GetSection(AgentSettings.SectionName));
+        builder.Services.AddSingleton(sp => AgentPaths.Resolve(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AgentSettings>>().Value));
+        builder.Services.AddSingleton<SqliteDatabase>();
+        builder.Services.AddSingleton<SqliteAgentStateStore>();
+        builder.Services.AddSingleton<DeviceIdentityStore>();
+        builder.Services.AddSingleton<ServerTrust>();
+        builder.Services.AddHostedService<UpdateWorker>();
 
         var host = builder.Build();
         try

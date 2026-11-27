@@ -208,6 +208,9 @@ public sealed class HeartbeatService : IHeartbeatService
         await _state.SetAsync("clock_offset_ms", _clock.OffsetMs.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
         _local.RecordHeartbeat(result.SentUtc, true, (int?)result.StatusCode, null, (long)result.RoundTrip.TotalMilliseconds, resp.ServerTimeUtc, _clock.OffsetMs);
 
+        // Hand the update hint + liveness proof to the watchdog (which owns the actual update; see UpdateWorker).
+        await RecordUpdateHintAsync(resp, cancellationToken).ConfigureAwait(false);
+
         if (resp.DeviceStatus is "DISABLED" or "REVOKED") _gate.Suspend($"Device {resp.DeviceStatus.ToLowerInvariant()} by administrator");
         else if (_gate.Suspended) _gate.Resume();
 
@@ -218,4 +221,29 @@ public sealed class HeartbeatService : IHeartbeatService
         }
         return true;
     }
+
+    private async Task RecordUpdateHintAsync(HeartbeatResponse resp, CancellationToken ct)
+    {
+        try
+        {
+            var now = _time.GetUtcNow().UtcDateTime.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            await _state.SetAsync(AgentStateKeys.RunningVersion, AgentVersion.Current, ct).ConfigureAwait(false);
+            await _state.SetAsync(AgentStateKeys.HeartbeatOkUtc, now, ct).ConfigureAwait(false);
+            await _state.SetAsync(AgentStateKeys.UpdateTarget, resp.TargetAgentVersion ?? "", ct).ConfigureAwait(false);
+            await _state.SetAsync(AgentStateKeys.UpdateUrl, resp.UpdateUrl ?? "", ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+            _log.LogDebug(ex, "Could not record the update hint");
+        }
+    }
+}
+
+/// <summary>agent_state keys shared between the service (writer) and the watchdog (reader).</summary>
+public static class AgentStateKeys
+{
+    public const string RunningVersion = "agent_running_version";
+    public const string HeartbeatOkUtc = "last_heartbeat_ok_utc";
+    public const string UpdateTarget = "update_target_version";
+    public const string UpdateUrl = "update_url";
 }
