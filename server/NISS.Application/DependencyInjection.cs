@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<ILiveStateService, LiveStateService>();
         services.AddScoped<IDataSeeder, DataSeeder>();
         services.AddScoped<Updates.IAgentPackageService, Updates.AgentPackageService>();
+        services.AddScoped<Updates.IAgentUpdateService, Updates.AgentUpdateService>();
 
         // Agent side
         services.AddScoped<IEnrollmentService, EnrollmentService>();

@@ -129,6 +129,68 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.ToTable("agent_packages", (string)null);
                 });
 
+            modelBuilder.Entity("NISS.Domain.Entities.AgentRollout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BakeHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("bake_hours");
+
+                    b.PrimitiveCollection<Guid[]>("CanaryDeviceIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("canary_device_ids");
+
+                    b.Property<DateTimeOffset?>("CanaryStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("canary_started_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<double>("Threshold")
+                        .HasColumnType("double precision")
+                        .HasColumnName("threshold");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_rollouts");
+
+                    b.HasIndex("State")
+                        .HasDatabaseName("ix_agent_rollouts_state");
+
+                    b.ToTable("agent_rollouts", (string)null);
+                });
+
             modelBuilder.Entity("NISS.Domain.Entities.AgentStatus", b =>
                 {
                     b.Property<Guid>("DeviceId")
@@ -659,6 +721,58 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_device_inventories_device_id");
 
                     b.ToTable("device_inventories", (string)null);
+                });
+
+            modelBuilder.Entity("NISS.Domain.Entities.DeviceUpdateState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssignedVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("assigned_version");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("FailedVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failed_version");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("phase");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_device_update_states");
+
+                    b.HasIndex("DeviceId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_device_update_states_device_id");
+
+                    b.HasIndex("FailedVersion")
+                        .HasDatabaseName("ix_device_update_states_failed_version");
+
+                    b.ToTable("device_update_states", (string)null);
                 });
 
             modelBuilder.Entity("NISS.Domain.Entities.DeviceUser", b =>
@@ -1742,6 +1856,16 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Software");
+                });
+
+            modelBuilder.Entity("NISS.Domain.Entities.DeviceUpdateState", b =>
+                {
+                    b.HasOne("NISS.Domain.Entities.Device", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_update_states_devices_device_id");
                 });
 
             modelBuilder.Entity("NISS.Domain.Entities.DeviceUser", b =>

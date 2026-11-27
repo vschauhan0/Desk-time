@@ -35,6 +35,8 @@ public interface IAppDbContext
     DbSet<Screenshot> Screenshots { get; }
     DbSet<DeviceInventory> DeviceInventories { get; }
     DbSet<AgentPackage> AgentPackages { get; }
+    DbSet<AgentRollout> AgentRollouts { get; }
+    DbSet<DeviceUpdateState> DeviceUpdateStates { get; }
 
     DatabaseFacade Database { get; }
     ChangeTracker ChangeTracker { get; }

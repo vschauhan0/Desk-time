@@ -37,6 +37,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
     public DbSet<DeviceInventory> DeviceInventories => Set<DeviceInventory>();
     public DbSet<AgentPackage> AgentPackages => Set<AgentPackage>();
+    public DbSet<AgentRollout> AgentRollouts => Set<AgentRollout>();
+    public DbSet<DeviceUpdateState> DeviceUpdateStates => Set<DeviceUpdateState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

@@ -33,6 +33,8 @@ public static class AuditActions
     public const string LiveViewStarted = "LIVE_VIEW_STARTED";
     public const string LiveViewEnded = "LIVE_VIEW_ENDED";
     public const string AgentPackageUploaded = "AGENT_PACKAGE_UPLOADED";
+    public const string RolloutCreated = "ROLLOUT_CREATED";
+    public const string RolloutCanarySet = "ROLLOUT_CANARY_SET";
 }
 
 internal sealed class AuditService(IAppDbContext db, ICurrentUser user, TimeProvider clock) : IAuditService
