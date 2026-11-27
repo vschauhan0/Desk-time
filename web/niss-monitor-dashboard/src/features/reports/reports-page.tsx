@@ -18,6 +18,7 @@ import { ReportTable } from "./report-table";
 
 export const REPORT_LABELS: Record<ReportKind, string> = {
   daily: "Daily summary",
+  attendance: "Attendance (login / logout / worked)",
   "application-usage": "Application usage",
   "active-idle": "Active / idle / locked",
   "device-health": "Device health",

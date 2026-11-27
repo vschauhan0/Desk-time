@@ -137,6 +137,44 @@ public sealed class AgentPolicyValidator : AbstractValidator<AgentPolicy>
         RuleFor(x => x.FileMonitoring).NotNull();
         RuleFor(x => x.CursorSampling).NotNull();
         RuleFor(x => x.CursorSampling.IntervalSeconds).InclusiveBetween(1, 3600).When(x => x.CursorSampling is not null);
+        RuleFor(x => x.ScreenCapture).NotNull();
+        RuleFor(x => x.ScreenCapture!).SetValidator(new ScreenCapturePolicyValidator()).When(x => x.ScreenCapture is not null);
+    }
+}
+
+/// <summary>Bounds on the screen capture module, including flagged-activity capture.</summary>
+public sealed class ScreenCapturePolicyValidator : AbstractValidator<ScreenCapturePolicy>
+{
+    public ScreenCapturePolicyValidator()
+    {
+        // 5 s floor matches the agent's own clamp in ScreenCaptureLoop; 24 h ceiling keeps a typo from disabling capture silently.
+        RuleFor(x => x.IntervalSeconds).InclusiveBetween(5, 86_400);
+        RuleFor(x => x.Quality).InclusiveBetween(1, 100);
+        RuleFor(x => x.MaxWidth).InclusiveBetween(320, 7680);
+        RuleFor(x => x.FlaggedActivity!).SetValidator(new FlaggedActivityPolicyValidator()).When(x => x.FlaggedActivity is not null);
+    }
+}
+
+/// <summary>Bounds on flagged-activity capture. Terms are matched against window titles, so they are plain substrings.</summary>
+public sealed class FlaggedActivityPolicyValidator : AbstractValidator<FlaggedActivityPolicy>
+{
+    /// <summary>Most flagged terms one policy may carry.</summary>
+    public const int MaxTerms = 200;
+
+    public FlaggedActivityPolicyValidator()
+    {
+        RuleFor(x => x.Terms).NotNull();
+        RuleFor(x => x.CooldownSeconds).InclusiveBetween(0, 86_400);
+        RuleFor(x => x.ClipSeconds).InclusiveBetween(1, 60);
+        RuleFor(x => x.ClipFps).InclusiveBetween(1, 5);
+        RuleFor(x => x.Terms.Count).LessThanOrEqualTo(MaxTerms).WithName("terms").When(x => x.Terms is not null);
+        RuleForEach(x => x.Terms)
+            .NotEmpty().WithMessage("A flagged term cannot be blank.")
+            .MaximumLength(128).WithMessage("A flagged term is limited to 128 characters.")
+            .When(x => x.Terms is not null);
+        RuleFor(x => x.Terms)
+            .Must(t => t.Count > 0).WithMessage("Flagged capture is enabled but no flagged terms are listed.")
+            .When(x => x is { Enabled: true, Terms: not null });
     }
 }
 
@@ -178,6 +216,9 @@ public sealed class RetentionSettingsValidator : AbstractValidator<RetentionSett
         RuleFor(x => x.ApplicationSummariesDays).InclusiveBetween(0, 3650);
         RuleFor(x => x.DeviceHealthDays).InclusiveBetween(0, 3650);
         RuleFor(x => x.AuditLogsDays).InclusiveBetween(0, 3650);
+        // Null means "use the serversettings.json default", so only a supplied value is range-checked.
+        RuleFor(x => x.ScreenshotDays!.Value).InclusiveBetween(0, 3650).When(x => x.ScreenshotDays is not null);
+        RuleFor(x => x.FlaggedScreenshotDays!.Value).InclusiveBetween(0, 3650).When(x => x.FlaggedScreenshotDays is not null);
     }
 }
 

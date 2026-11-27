@@ -525,6 +525,85 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.ToTable("devices", (string)null);
                 });
 
+            modelBuilder.Entity("NISS.Domain.Entities.DeviceInventory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CapturedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("captured_at_utc");
+
+                    b.Property<int?>("CpuCores")
+                        .HasColumnType("integer")
+                        .HasColumnName("cpu_cores");
+
+                    b.Property<int?>("CpuLogical")
+                        .HasColumnType("integer")
+                        .HasColumnName("cpu_logical");
+
+                    b.Property<string>("CpuModel")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("cpu_model");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<double?>("DiskTotalGb")
+                        .HasColumnType("double precision")
+                        .HasColumnName("disk_total_gb");
+
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("manufacturer");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("OsBuild")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("os_build");
+
+                    b.Property<string>("OsName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("os_name");
+
+                    b.Property<string>("OsVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("os_version");
+
+                    b.Property<double?>("RamGb")
+                        .HasColumnType("double precision")
+                        .HasColumnName("ram_gb");
+
+                    b.Property<string>("Serial")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("serial");
+
+                    b.HasKey("Id")
+                        .HasName("pk_device_inventories");
+
+                    b.HasIndex("DeviceId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_device_inventories_device_id");
+
+                    b.ToTable("device_inventories", (string)null);
+                });
+
             modelBuilder.Entity("NISS.Domain.Entities.DeviceUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1188,6 +1267,18 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("captured_at_utc");
 
+                    b.Property<Guid?>("ClipId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("clip_id");
+
+                    b.Property<int>("ClipSeq")
+                        .HasColumnType("integer")
+                        .HasColumnName("clip_seq");
+
+                    b.Property<int>("ClipTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("clip_total");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1200,6 +1291,11 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
 
+                    b.Property<string>("FlagTerm")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("flag_term");
+
                     b.Property<string>("FrameId")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -1209,6 +1305,11 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.Property<int>("Height")
                         .HasColumnType("integer")
                         .HasColumnName("height");
+
+                    b.Property<string>("MatchedOn")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("matched_on");
 
                     b.Property<int>("MonitorIndex")
                         .HasColumnType("integer")
@@ -1226,6 +1327,14 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("session_user");
 
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("PERIODIC")
+                        .HasColumnName("trigger");
+
                     b.Property<int>("Width")
                         .HasColumnType("integer")
                         .HasColumnName("width");
@@ -1239,12 +1348,18 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.HasIndex("EmployeeId")
                         .HasDatabaseName("ix_screenshots_employee_id");
 
+                    b.HasIndex("ClipId", "ClipSeq")
+                        .HasDatabaseName("ix_screenshots_clip_id_clip_seq");
+
                     b.HasIndex("DeviceId", "CapturedAtUtc")
                         .HasDatabaseName("ix_screenshots_device_id_captured_at_utc");
 
                     b.HasIndex("DeviceId", "FrameId")
                         .IsUnique()
                         .HasDatabaseName("ix_screenshots_device_id_frame_id");
+
+                    b.HasIndex("DeviceId", "Trigger", "CapturedAtUtc")
+                        .HasDatabaseName("ix_screenshots_device_id_trigger_captured_at_utc");
 
                     b.ToTable("screenshots", (string)null);
                 });
@@ -1538,6 +1653,38 @@ namespace NISS.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_devices_employees_employee_id");
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("NISS.Domain.Entities.DeviceInventory", b =>
+                {
+                    b.OwnsMany("NISS.Domain.Entities.InstalledSoftwareRow", "Software", b1 =>
+                        {
+                            b1.Property<Guid>("DeviceInventoryId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("Publisher");
+
+                            b1.Property<string>("Version");
+
+                            b1.HasKey("DeviceInventoryId", "__synthesizedOrdinal");
+
+                            b1.ToTable("device_inventories");
+
+                            b1
+                                .ToJson("software")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("DeviceInventoryId")
+                                .HasConstraintName("fk_device_inventories_device_inventories_device_inventory_id");
+                        });
+
+                    b.Navigation("Software");
                 });
 
             modelBuilder.Entity("NISS.Domain.Entities.DeviceUser", b =>

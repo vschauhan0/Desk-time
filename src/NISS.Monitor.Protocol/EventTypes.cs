@@ -45,6 +45,9 @@ public static class EventTypes
     public const string NetworkConnected = "NETWORK_CONNECTED";
     public const string NetworkDisconnected = "NETWORK_DISCONNECTED";
 
+    // Inventory (periodic snapshot: hardware facts + installed software; not time-series)
+    public const string DeviceInventory = "DEVICE_INVENTORY";
+
     // Agent lifecycle
     public const string AgentStarted = "AGENT_STARTED";
     public const string AgentStopped = "AGENT_STOPPED";
@@ -63,6 +66,7 @@ public static class EventTypes
         UsbConnected, UsbDisconnected,
         FileCreated, FileModified, FileRenamed, FileDeleted,
         SystemMetric, NetworkConnected, NetworkDisconnected,
+        DeviceInventory,
         AgentStarted, AgentStopped, AgentHeartbeat, AgentError, AgentVersionChanged,
     }.ToFrozenSet(StringComparer.Ordinal);
 
@@ -136,6 +140,9 @@ public static class SecurityEventKinds
     public const string DeviceOffline = "DEVICE_OFFLINE";
     public const string DeviceRecovered = "DEVICE_RECOVERED";
     public const string ServiceStopped = "SERVICE_STOPPED";
+    /// <summary>A deliberate stop/removal of the agent while a user was signed in (layer-3 anti-tamper); Critical, and
+    /// never auto-resolved - it stays until a human acknowledges it, so a watchdog restart cannot silently clear it.</summary>
+    public const string TamperSuspected = "TAMPER_SUSPECTED";
     public const string SessionAgentMissing = "SESSION_AGENT_MISSING";
     public const string AgentOutdated = "AGENT_OUTDATED";
     public const string UploadFailure = "UPLOAD_FAILURE";

@@ -26,10 +26,10 @@ CPU/RAM/disk/network/battery/displays - USB arrival/removal - optional file meta
 .\deployment\scripts\Build-Agent.ps1            # -> artifacts\agent\NISSMonitorSetup.exe
 
 # 3. dashboard -> Devices -> Enrollment tokens -> New token, then on each employee PC (elevated):
-NISSMonitorSetup.exe --server https://192.168.1.10:8443 --token <token> --thumbprint <sha256 pin>
+NISSMonitorSetup.exe --server https://192.168.1.222:8443 --token <token> --thumbprint <sha256 pin>
 ```
 
-Open `http://192.168.1.10:3000` and sign in with the bootstrap administrator printed by the launcher (change the password).
+Open `http://192.168.1.222:3000` and sign in with the bootstrap administrator printed by the launcher (change the password).
 
 ## Repository
 

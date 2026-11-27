@@ -132,8 +132,11 @@ internal sealed class AgentEventProjector(
                 status.ServiceState = "Running";
                 if (!string.IsNullOrWhiteSpace(p.AgentVersion)) device.AgentVersion = Text.Trunc(p.AgentVersion, 64)!;
                 if (p.UnexpectedPreviousShutdown == true)
+                {
+                    var who = string.IsNullOrWhiteSpace(status.UserName) ? "" : $" (last signed-in user: {status.UserName})";
                     await security.RaiseAsync(dref, SecurityEventKinds.UnexpectedShutdown, SecuritySeverity.Warning,
-                        $"{device.DeviceCode}: the agent did not shut down cleanly before this start.", onlyIfNoneOpen: false, throttle: TimeSpan.FromMinutes(10), ct: ct);
+                        $"{device.DeviceCode}: the agent did not shut down cleanly before this start (possible kill/crash/power loss).{who}", onlyIfNoneOpen: false, throttle: TimeSpan.FromMinutes(10), ct: ct);
+                }
                 break;
 
             case ET.AgentStopped:
@@ -143,6 +146,13 @@ internal sealed class AgentEventProjector(
                 {
                     device.ServiceStoppedAt = device.ServiceStoppedAt is { } prev && prev > ctx.Timestamp ? prev : ctx.Timestamp;
                     await statusService.ApplyAsync(device, DeviceHealth.ServiceStopped, p.Reason ?? "AGENT_STOPPED", ct);
+                    // Deliberate stop while a user was signed in (the agent only sets InteractiveUser then). Raise a
+                    // Critical, attributed tamper alert that is NOT auto-resolved - so the watchdog restarting the
+                    // service seconds later cannot silently clear it; a human must acknowledge it.
+                    if (!string.IsNullOrWhiteSpace(p.InteractiveUser))
+                        await security.RaiseAsync(dref, SecurityEventKinds.TamperSuspected, SecuritySeverity.Critical,
+                            $"{device.DeviceCode} ({device.Hostname}): monitoring service was stopped while {p.InteractiveUser} was signed in.",
+                            onlyIfNoneOpen: false, throttle: TimeSpan.FromMinutes(1), ct: ct);
                 }
                 break;
 

@@ -41,9 +41,10 @@ public static class ScreenshotEndpoints
         var sa = api.MapGroup("/devices").RequireAuthorization(AuthDefaults.SuperAdminPolicy);
 
         sa.MapGet("/{deviceId}/screenshots", async (
-                string deviceId, DateTimeOffset? from, DateTimeOffset? to, int? page, int? pageSize,
-                IScreenshotQueryService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListAsync(deviceId, from, to, PageRequest.From(page, pageSize), ct)));
+                string deviceId, DateTimeOffset? from, DateTimeOffset? to, string? trigger, bool? includeClipFrames,
+                int? page, int? pageSize, IScreenshotQueryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(deviceId, from, to, trigger, includeClipFrames ?? false,
+                PageRequest.From(page, pageSize), ct)));
 
         sa.MapGet("/{deviceId}/screenshots/{id:guid}/image", async (
                 string deviceId, Guid id, IScreenshotQueryService svc, CancellationToken ct) =>
@@ -51,6 +52,11 @@ public static class ScreenshotEndpoints
                 var file = await svc.GetImageAsync(deviceId, id, ct);
                 return Results.Stream(file.Content, "image/jpeg");
             });
+
+        // One flagged clip's frames in order. The dashboard replays them; there is no encoded video to serve.
+        sa.MapGet("/{deviceId}/screenshots/clips/{clipId:guid}", async (
+                string deviceId, Guid clipId, IScreenshotQueryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetClipAsync(deviceId, clipId, ct)));
 
         // Live view (SUPERADMIN): start returns the session id + hub group to watch.
         sa.MapPost("/{deviceId}/live-view/start", async (

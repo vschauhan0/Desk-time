@@ -59,6 +59,9 @@ public static class DeviceEndpoints
         devices.MapGet("/{deviceId}/diagnostics", async (string deviceId, IDeviceQueryService svc, CancellationToken ct) =>
             Results.Ok(await svc.DiagnosticsAsync(deviceId, ct)));
 
+        devices.MapGet("/{deviceId}/inventory", async (string deviceId, IDeviceQueryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.InventoryAsync(deviceId, ct)));
+
         var admin = api.MapGroup("/devices").RequireAuthorization(AuthDefaults.AdminPolicy);
 
         admin.MapGet("/{deviceId}/diagnostics/download", async (string deviceId, IDeviceQueryService svc, IAuditService audit, TimeProvider clock, CancellationToken ct) =>

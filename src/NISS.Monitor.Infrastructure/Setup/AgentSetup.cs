@@ -45,6 +45,24 @@ public static class AgentSetup
     public static string DefaultInstallDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NISS", "Monitor");
     public static string DefaultDataDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "NISS", "Agent");
 
+    // --- Service DACL hardening (layer-2 anti-tamper) ---------------------------------------------------------------
+    // Security descriptors applied to each service with `sc sdset`. DACL-only on purpose: a SACL would need
+    // SeSecurityPrivilege, we only care who may STOP/DELETE, and `sc sdset` leaves any existing SACL untouched.
+    // Rights letters: CC=query-config DC=change-config LC=query-status SW=enum-deps RP=START WP=STOP DT=pause
+    //                 LO=interrogate CR=user-defined-control SD=DELETE RC=read-control WD=write-DAC WO=write-owner.
+
+    /// <summary>What Windows grants a new service: SYSTEM + Administrators full control. Used to undo hardening.</summary>
+    public const string DefaultServiceSddl =
+        "D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
+
+    /// <summary>Hardened DACL: Administrators lose WP (STOP) and SD (DELETE), so Services.msc, Task Manager,
+    /// <c>net stop</c>, <c>sc stop</c> and <c>sc delete</c> are denied even to an admin. We deliberately KEEP DC
+    /// (change-config) and WD (write-DAC) so the official uninstaller/repair - and a determined admin - can still
+    /// re-assert control: this is a speed bump plus detection (layer 3), not a wall. SYSTEM keeps full control so SCM
+    /// recovery actions and the peer watchdog keep working.</summary>
+    public const string HardenedServiceSddl =
+        "D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPDTLOCRRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
+
     /// <summary>Run a console tool and capture its output.</summary>
     public static ToolResult Run(string file, string arguments, int timeoutMs = 30_000)
     {
@@ -75,20 +93,21 @@ public static class AgentSetup
         catch (InvalidOperationException) { return "NotInstalled"; }
     }
 
-    /// <summary>Create (or reconfigure) the main agent service and its recovery actions.</summary>
-    public static void InstallOrUpdateService(string installDir, Action<string> log)
-        => InstallOrUpdateService(ServiceName, DisplayName, Description, EventSource, Path.Combine(installDir, ServiceExe), log);
+    /// <summary>Create (or reconfigure) the main agent service and its recovery actions. When <paramref name="hardenAcl"/>
+    /// is true (default) the service ends with the hardened DACL; false actively restores the default DACL.</summary>
+    public static void InstallOrUpdateService(string installDir, Action<string> log, bool hardenAcl = true)
+        => InstallOrUpdateService(ServiceName, DisplayName, Description, EventSource, Path.Combine(installDir, ServiceExe), log, hardenAcl);
 
     /// <summary>Create (or reconfigure) the watchdog service and its recovery actions.</summary>
-    public static void InstallOrUpdateWatchdogService(string installDir, Action<string> log)
-        => InstallOrUpdateService(WatchdogServiceName, WatchdogDisplayName, WatchdogDescription, WatchdogEventSource, Path.Combine(installDir, WatchdogExe), log);
+    public static void InstallOrUpdateWatchdogService(string installDir, Action<string> log, bool hardenAcl = true)
+        => InstallOrUpdateService(WatchdogServiceName, WatchdogDisplayName, WatchdogDescription, WatchdogEventSource, Path.Combine(installDir, WatchdogExe), log, hardenAcl);
 
     /// <summary>
     /// Create (or reconfigure) a service and its recovery actions. Recovery actions (restart on crash) and the
     /// mutual watchdog worker inside each service (restart on a deliberate stop) are complementary: this covers
     /// unexpected crashes, the watchdog covers Task Manager / <c>sc stop</c> / Services.msc.
     /// </summary>
-    private static void InstallOrUpdateService(string serviceName, string displayName, string description, string eventSource, string bin, Action<string> log)
+    private static void InstallOrUpdateService(string serviceName, string displayName, string description, string eventSource, string bin, Action<string> log, bool hardenAcl)
     {
         if (!File.Exists(bin)) throw new FileNotFoundException("Service executable not found", bin);
         var quoted = $"\"{bin}\"";
@@ -110,6 +129,28 @@ public static class AgentSetup
         Check(Run("sc.exe", $"failureflag {serviceName} 1"), "sc failureflag"); // also recover when the service exits with an error code
         log($"{displayName} recovery configured: restart / restart / restart");
         RegisterEventSource(eventSource);
+        // Leave the service in the desired protection state. Hardening is the last step so it is applied on top of
+        // the fresh registration; opting out actively clears any hardening a previous install left behind.
+        if (hardenAcl) HardenServiceAcl(serviceName, log);
+        else UnhardenServiceAcl(serviceName);
+    }
+
+    /// <summary>Apply the hardened service DACL (see <see cref="HardenedServiceSddl"/>) so administrators can no
+    /// longer stop or delete the service with the usual tools. No-op if the service is not registered.</summary>
+    public static void HardenServiceAcl(string serviceName = ServiceName, Action<string>? log = null)
+    {
+        if (!ServiceExists(serviceName)) return;
+        Check(Run("sc.exe", $"sdset {serviceName} {HardenedServiceSddl}"), "sc sdset (harden)");
+        log?.Invoke($"{serviceName} locked: administrators can no longer stop or delete it with the usual tools");
+    }
+
+    /// <summary>Restore the default service DACL (administrators full control). Best-effort - used by the agent's own
+    /// elevated stop/delete/reconfigure paths so they keep working against an already-hardened service.</summary>
+    public static void UnhardenServiceAcl(string serviceName = ServiceName)
+    {
+        if (!ServiceExists(serviceName)) return;
+        try { Run("sc.exe", $"sdset {serviceName} {DefaultServiceSddl}"); }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
     }
 
     /// <summary>Register an Application event-log source so a service can write to Windows Event Log.</summary>
@@ -153,6 +194,7 @@ public static class AgentSetup
     /// <summary>Stop the named service (and wait) if it is running. Stop the watchdog before the main service when replacing files, or the watchdog will restart it mid-update.</summary>
     public static void StopService(TimeSpan timeout, string serviceName = ServiceName)
     {
+        UnhardenServiceAcl(serviceName); // our own (elevated) stop needs SERVICE_STOP, which the hardened DACL denies
         try
         {
             using var sc = new ServiceController(serviceName);
@@ -195,7 +237,9 @@ public static class AgentSetup
     /// <summary>Delete a service registration.</summary>
     public static void DeleteService(string serviceName = ServiceName)
     {
-        if (ServiceExists(serviceName)) Check(Run("sc.exe", $"delete {serviceName}"), "sc delete");
+        if (!ServiceExists(serviceName)) return;
+        UnhardenServiceAcl(serviceName); // DELETE is denied to admins by the hardened DACL; restore it first
+        Check(Run("sc.exe", $"delete {serviceName}"), "sc delete");
     }
 
     private static void Check(ToolResult r, string what)

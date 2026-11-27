@@ -37,7 +37,9 @@ public sealed class ScreenCaptureWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        _uploader = new ScreenshotUploader(new ServerScreenshotUpload(api), capacity: 32);
+        // Sized to hold a full flagged clip (up to FlaggedActivityPolicy.MaxClipFrames) plus periodic stills, so a
+        // burst is not immediately dropped by the drop-oldest queue while it uploads.
+        _uploader = new ScreenshotUploader(new ServerScreenshotUpload(api), capacity: FlaggedActivityPolicy.MaxClipFrames + 32);
         // Require the connecting client to be the installed session exe so a local user cannot inject fake screenshots.
         await using var screenServer = new ScreenPipeServer(AgentConstants.ScreenPipeName, requireTrustedClientPath: true, OnFrameAsync);
 

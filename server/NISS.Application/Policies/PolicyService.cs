@@ -34,7 +34,7 @@ internal sealed class PolicyService(IAppDbContext db, ISettingsService settings,
             .ToListAsync(ct);
 
         var chosen = candidates.OrderByDescending(p => (int)p.Scope).FirstOrDefault();
-        var policy = JsonColumn.Deserialize<AgentPolicy>(chosen?.PolicyJson) ?? new AgentPolicy();
+        var policy = Normalize(JsonColumn.Deserialize<AgentPolicy>(chosen?.PolicyJson) ?? new AgentPolicy());
         var thresholds = await settings.GetThresholdsAsync(ct);
         var version = await settings.GetPolicyVersionAsync(ct);
         return policy with { Version = version, MinAgentVersion = policy.MinAgentVersion ?? thresholds.MinAgentVersion };
@@ -92,8 +92,20 @@ internal sealed class PolicyService(IAppDbContext db, ISettingsService settings,
 
     private static PolicyDto ToDto(ConfigurationPolicy r, int version)
     {
-        var policy = JsonColumn.Deserialize<AgentPolicy>(r.PolicyJson) ?? new AgentPolicy();
+        var policy = Normalize(JsonColumn.Deserialize<AgentPolicy>(r.PolicyJson) ?? new AgentPolicy());
         return new PolicyDto(r.Id, r.Name, r.Scope.ToString().ToUpperInvariant(),
             r.Scope == PolicyScope.Global ? null : r.ScopeValue, policy with { Version = version }, r.UpdatedAt);
+    }
+
+    /// <summary>
+    /// Fills in sub-policies a stored row may be missing, so every consumer sees a complete policy. A row written
+    /// before screen capture or flagged activity existed deserialises those members as null; emitting that null would
+    /// make the dashboard dereference a missing object, and would hand the agent a policy it has to second-guess.
+    /// Missing always means "off", never "on".
+    /// </summary>
+    private static AgentPolicy Normalize(AgentPolicy p)
+    {
+        var screen = p.ScreenCapture ?? new AgentPolicy().ScreenCapture;
+        return p with { ScreenCapture = screen with { FlaggedActivity = screen.Flagged } };
     }
 }

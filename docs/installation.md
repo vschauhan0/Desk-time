@@ -77,7 +77,7 @@ The token is shown once. It is single-use.
 ### Install (elevated prompt on the employee PC)
 
 ```powershell
-NISSMonitorSetup.exe --server https://192.168.1.10:8443 --token <one-time-token> --thumbprint <sha256-pin> [--employee EMP1024] [/silent]
+NISSMonitorSetup.exe --server https://192.168.1.222:8443 --token <one-time-token> --thumbprint <sha256-pin> [--employee EMP1024] [/silent]
 ```
 
 The installer performs, with visible progress: verify Windows -> stop old services -> install files (`C:\Program Files\NISS\Monitor`) ->

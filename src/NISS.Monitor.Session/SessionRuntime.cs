@@ -57,6 +57,13 @@ public sealed class SessionRuntime
         _pipe.PolicyReceived += OnPolicy;
     }
 
+    /// <summary>
+    /// Optional observer of the foreground window (process name, window title), invoked on every foreground poll.
+    /// Screen monitoring subscribes to this to detect flagged activity, so it sees exactly the same sample the event
+    /// pipeline does - including the <c>CaptureWindowTitles</c> privacy gate, which nulls the title when it is off.
+    /// </summary>
+    public Action<string?, string?>? ForegroundObserver { get; set; }
+
     private void OnPolicy(AgentPolicy p)
     {
         _policy = p;
@@ -111,6 +118,8 @@ public sealed class SessionRuntime
         await EmitPresenceAsync(_presence.Tick(now, idleFor), now, ct).ConfigureAwait(false);
 
         var sample = locked ? null : _foreground.Sample(policy.CaptureWindowTitles);
+        try { ForegroundObserver?.Invoke(sample?.ProcessName, sample?.WindowTitle); }
+        catch (Exception ex) { _log.Error("Foreground observer failed: " + ex.Message); }
         var interacting = idleFor <= TimeSpan.FromSeconds(Math.Max(5, policy.InteractionWindowSeconds));
         var idle = _presence.State == PresenceState.Idle;
         foreach (var change in _apps.Tick(new AppTick(now, sample, locked, idle, interacting)))

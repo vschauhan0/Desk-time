@@ -124,6 +124,50 @@ internal sealed class ActiveIdleReport(IAppDbContext db, IActivityLoader activit
     }
 }
 
+/// <summary>Attendance: first login, last logout and worked / idle / locked time per employee per local day.</summary>
+internal sealed class AttendanceReport(IAppDbContext db, IActivityLoader activity) : ReportGeneratorBase
+{
+    public override string Kind => "attendance";
+    public override string Title => "Attendance";
+
+    public override async Task<ReportResult> GenerateAsync(ReportRequest r, CancellationToken ct)
+    {
+        var rows = await activity.LoadAsync(r.Scope, r.Range, ct);
+        var employees = await db.Employees.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);
+        var offset = TimeSpan.FromMinutes(r.TzOffsetMinutes);
+        var firstDay = DateOnly.FromDateTime(r.Range.From.ToOffset(offset).DateTime);
+        var lastDay = DateOnly.FromDateTime(r.Range.To.AddTicks(-1).ToOffset(offset).DateTime);
+        if (lastDay.DayNumber - firstDay.DayNumber > 92) lastDay = firstDay.AddDays(92);
+
+        var result = new List<Dictionary<string, object?>>();
+        foreach (var g in rows.Logins.Where(l => l.EmployeeId != null).GroupBy(l => l.EmployeeId!.Value))
+        {
+            var emp = employees.GetValueOrDefault(g.Key);
+            for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+            {
+                var window = TimeRange.ForDay(day, r.TzOffsetMinutes);
+                var b = PresenceCalculator.Compute(g, rows.Idles.Where(i => i.EmployeeId == g.Key), window, rows.Now);
+                if (b.LoggedInSeconds <= 0) continue;
+                var from = window.From; var to = window.To;
+                result.Add(new()
+                {
+                    ["date"] = day.ToString("yyyy-MM-dd"),
+                    ["employeeCode"] = emp?.EmployeeCode, ["employee"] = emp?.FullName, ["department"] = emp?.Department,
+                    ["firstLogin"] = g.Where(l => l.Login >= from && l.Login < to).Select(l => (DateTimeOffset?)l.Login).Min(),
+                    ["lastLogout"] = g.Where(l => l.Logout != null && l.Logout >= from && l.Logout < to).Select(l => l.Logout).Max(),
+                    ["loggedInSeconds"] = S(b.LoggedInSeconds), ["activeSeconds"] = S(b.ActiveSeconds), ["idleSeconds"] = S(b.IdleSeconds), ["lockedSeconds"] = S(b.LockedSeconds),
+                });
+            }
+        }
+        return Result(r,
+        [
+            Col.Str("date", "Date"), Col.Str("employeeCode", "Employee code"), Col.Str("employee", "Employee"), Col.Str("department", "Department"),
+            Col.Time("firstLogin", "First login"), Col.Time("lastLogout", "Last logout"),
+            Col.Secs("loggedInSeconds", "Logged in"), Col.Secs("activeSeconds", "Worked"), Col.Secs("idleSeconds", "Idle"), Col.Secs("lockedSeconds", "Locked"),
+        ], result.OrderBy(x => (string?)x["date"]).ThenBy(x => (string?)x["employeeCode"]).Take(RowCap).ToList());
+    }
+}
+
 /// <summary>Heartbeat / resource statistics per device.</summary>
 internal sealed class DeviceHealthReport(IAppDbContext db) : ReportGeneratorBase
 {

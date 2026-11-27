@@ -33,6 +33,7 @@ public interface IAppDbContext
     DbSet<Domain.Entities.AppCategoryRule> AppCategoryRules { get; }
     DbSet<ServerSetting> ServerSettings { get; }
     DbSet<Screenshot> Screenshots { get; }
+    DbSet<DeviceInventory> DeviceInventories { get; }
 
     DatabaseFacade Database { get; }
     ChangeTracker ChangeTracker { get; }

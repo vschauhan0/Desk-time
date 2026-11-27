@@ -23,10 +23,16 @@ $svc = 'NISSMonitorService'
 $wdSvc = 'Watchdog'
 if ($Payload) {
     Write-Host '[..] Restoring binaries from payload'
+    # Restore default service rights so the stop below works if a previous install hardened the ACL. NISSAgent.exe
+    # --repair re-applies the hardened ACL at the end, so the repaired install ends locked again.
+    $DefaultSddl = 'D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+    foreach ($s in @($wdSvc, $svc)) { if (Get-Service $s -ErrorAction SilentlyContinue) { & sc.exe sdset $s $DefaultSddl | Out-Null } }
     # Watchdog first - otherwise it notices the main service stop and restarts it mid-repair.
     if (Get-Service $wdSvc -ErrorAction SilentlyContinue) { Stop-Service $wdSvc -Force -ErrorAction SilentlyContinue; (Get-Service $wdSvc).WaitForStatus('Stopped', '00:00:15') }
     if (Get-Service $svc -ErrorAction SilentlyContinue) { Stop-Service $svc -Force -ErrorAction SilentlyContinue; (Get-Service $svc).WaitForStatus('Stopped', '00:00:40') }
-    Get-Process 'NISSMonitor.Session' -ErrorAction SilentlyContinue | Stop-Process -Force
+    # The running session helper is Windows.RunSession (its AssemblyName); without this a repair swaps the service
+    # binaries but leaves the OLD session agent running until the user logs off, so session-side changes never apply.
+    Get-Process 'Windows.RunSession', 'NISSMonitor.Session', 'NISSAgent' -ErrorAction SilentlyContinue | Stop-Process -Force
     $settings = Join-Path $InstallDir 'agentsettings.json'
     $kept = if (Test-Path $settings) { Get-Content $settings -Raw } else { $null }
     if (Test-Path -PathType Leaf $Payload) { Expand-Archive -Path $Payload -DestinationPath $InstallDir -Force } else { Copy-Item (Join-Path $Payload '*') $InstallDir -Recurse -Force }

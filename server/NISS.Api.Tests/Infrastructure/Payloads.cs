@@ -36,6 +36,11 @@ public static class P
     public static SystemMetricPayload Metric(double cpu = 25, double mem = 60, bool network = true) =>
         new(cpu, mem, 16384, 6553, [new DiskInfo("C:", 512, 200, 61)], 7200, network, ["10.0.0.5"], ["AA-BB-CC-DD-EE-FF"], null, [new DisplayInfo(1920, 1080)], "alice");
 
-    public static AgentPayload Agent(string? message = null, bool? unexpected = null, string version = "1.0.0", string? component = null) =>
-        new(version, null, null, message, component, unexpected, null);
+    public static AgentPayload Agent(string? message = null, bool? unexpected = null, string version = "1.0.0", string? component = null, string? interactiveUser = null) =>
+        new(version, null, null, message, component, unexpected, null, interactiveUser);
+
+    public static InventoryPayload Inventory() =>
+        new("Dell Inc.", "Latitude 7440", "SVC12345", "Windows 11 Pro", "10.0.26100", "26100",
+            "Intel Core i7-1365U", 10, 12, 16, 512,
+            [new InstalledSoftware("Google Chrome", "130.0", "Google LLC"), new InstalledSoftware("7-Zip", "24.0", "Igor Pavlov")]);
 }

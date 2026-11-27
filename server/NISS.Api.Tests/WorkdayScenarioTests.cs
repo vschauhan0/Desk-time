@@ -220,9 +220,31 @@ public sealed class WorkdayScenarioTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task Attendance_report_gives_per_day_login_logout_and_worked_time()
+    {
+        var attendance = await _admin.GetJsonAsync<ReportResult>($"/api/v1/reports/attendance?{Range}&tzOffsetMinutes=0");
+        Assert.Equal("attendance", attendance.Kind);
+        Assert.Equal(
+            new[] { "date", "employeeCode", "employee", "department", "firstLogin", "lastLogout", "loggedInSeconds", "activeSeconds", "idleSeconds", "lockedSeconds" },
+            attendance.Columns.Select(c => c.Key));
+        Assert.Equal("datetime", attendance.Columns.Single(c => c.Key == "firstLogin").Type);
+        Assert.Equal("duration", attendance.Columns.Single(c => c.Key == "activeSeconds").Type);
+
+        // One row per employee per local day they were logged in. For Dana on 2026-03-10:
+        var row = attendance.Rows.Single(r => r["employeeCode"]?.ToString() == "EMP-DAY" && r["date"]?.ToString() == "2026-03-10");
+        Assert.Equal("7200", row["loggedInSeconds"]!.ToString());               // 09:00-11:00
+        Assert.Equal("5400", row["activeSeconds"]!.ToString());                 // worked = logged in - idle - locked
+        Assert.Equal("900", row["idleSeconds"]!.ToString());                    // 09:55-10:10
+        Assert.Equal("900", row["lockedSeconds"]!.ToString());                  // 10:20:05-10:35:05
+        Assert.Equal("Finance", row["department"]!.ToString());
+        Assert.Equal(At(9, 0), DateTimeOffset.Parse(row["firstLogin"]!.ToString()!));
+        Assert.Equal(At(11, 0), DateTimeOffset.Parse(row["lastLogout"]!.ToString()!));
+    }
+
+    [Fact]
     public async Task Every_report_kind_returns_json_and_csv()
     {
-        foreach (var kind in new[] { "daily", "application-usage", "active-idle", "device-health", "process-timeline", "usb", "agent-health", "department-summary" })
+        foreach (var kind in new[] { "attendance", "daily", "application-usage", "active-idle", "device-health", "process-timeline", "usb", "agent-health", "department-summary" })
         {
             var json = await _admin.GetAsync($"/api/v1/reports/{kind}?{Range}");
             Assert.Equal(HttpStatusCode.OK, json.StatusCode);

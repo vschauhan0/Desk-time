@@ -17,7 +17,8 @@ public sealed class SettingsTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(5, global.Policy.IdleThresholdMinutes);
 
         var retention = await admin.GetJsonAsync<RetentionSettings>("/api/v1/settings/retention");
-        Assert.Equal(new RetentionSettings(90, 365, 180, 365), retention);
+        // Screenshot values come from ScreenshotStorage in serversettings.json: periodic 14 days, flagged 90.
+        Assert.Equal(new RetentionSettings(90, 365, 180, 365, 14, 90), retention);
         var thresholds = await admin.GetJsonAsync<HealthThresholds>("/api/v1/settings/health-thresholds");
         Assert.Equal(new HealthThresholds(60, 300, 5000, null), thresholds);
 
@@ -131,12 +132,16 @@ public sealed class SettingsTests(ApiFactory factory) : IClassFixture<ApiFactory
     public async Task Retention_and_thresholds_are_editable_and_validated()
     {
         var admin = await factory.AdminAsync();
-        var retention = await (await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(30, 60, 90, 0))).ReadAsync<RetentionSettings>();
-        Assert.Equal(new RetentionSettings(30, 60, 90, 0), await admin.GetJsonAsync<RetentionSettings>("/api/v1/settings/retention"));
-        Assert.Equal(retention, new RetentionSettings(30, 60, 90, 0));
-        await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(90, 365, 180, 365));
+        var saved = new RetentionSettings(30, 60, 90, 0, 7, 45);
+        var retention = await (await admin.PutJsonAsync("/api/v1/settings/retention", saved)).ReadAsync<RetentionSettings>();
+        Assert.Equal(saved, await admin.GetJsonAsync<RetentionSettings>("/api/v1/settings/retention"));
+        Assert.Equal(retention, saved);
+        await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(90, 365, 180, 365, 14, 90));
 
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(-1, 1, 1, 1))).StatusCode);
+        // Screenshot retention is range-checked too, when supplied.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(1, 1, 1, 1, -1, 1))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/retention", new RetentionSettings(1, 1, 1, 1, 1, 99_999))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/health-thresholds", new HealthThresholds(100, 50, 5000, null))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/health-thresholds", new HealthThresholds(60, 300, 5000, "not-a-version"))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutJsonAsync("/api/v1/settings/app-categories", new List<AppCategoryRule> { new(Guid.Empty, "x*", "Bogus", 1) })).StatusCode);

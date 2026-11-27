@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -5,6 +6,8 @@ using NISS.Application.Abstractions;
 using NISS.Application.Options;
 using NISS.Application.Screenshots;
 using NISS.Application.Settings;
+using NISS.Domain.Entities;
+using NISS.Monitor.Protocol;
 
 namespace NISS.Application.Retention;
 
@@ -45,13 +48,19 @@ internal sealed class RetentionService(
         await Prune("deviceHealth", r.DeviceHealthDays, RetentionTarget.SystemMetrics, RetentionTarget.Heartbeats, RetentionTarget.SecurityEvents);
         await Prune("auditLogs", r.AuditLogsDays, RetentionTarget.AuditLogs);
         // Screenshots are files on disk plus rows: delete both through the store (ExecuteDelete would orphan the files).
-        var shotDays = screenshotOptions.Value.RetentionDays;
-        if (shotDays > 0)
+        // Periodic and flagged captures expire on separate schedules; flagged ones are evidence and normally kept longer.
+        await PruneScreenshotsAsync("screenshots", r.ScreenshotDays ?? screenshotOptions.Value.RetentionDays,
+            s => s.Trigger != ScreenTriggers.Flagged);
+        await PruneScreenshotsAsync("flaggedScreenshots", r.FlaggedScreenshotDays ?? screenshotOptions.Value.FlaggedRetentionDays,
+            s => s.Trigger == ScreenTriggers.Flagged);
+
+        async Task PruneScreenshotsAsync(string group, int days, Expression<Func<Screenshot, bool>> selector)
         {
-            var cutoff = now.AddDays(-shotDays);
-            var expired = await db.Screenshots.Where(s => s.CapturedAtUtc < cutoff).ToListAsync(ct);
+            if (days <= 0) return;
+            var cutoff = now.AddDays(-days);
+            var expired = await db.Screenshots.Where(selector).Where(s => s.CapturedAtUtc < cutoff).ToListAsync(ct);
             if (expired.Count > 0) await screenshots.DeleteAsync(expired, ct);
-            result["screenshots"] = expired.Count;
+            result[group] = expired.Count;
         }
 
         // Expired refresh tokens are housekeeping, not policy.

@@ -22,7 +22,7 @@ public sealed class EnrollmentSettings
 /// <summary>How to reach the central server.</summary>
 public sealed class ServerSettings
 {
-    /// <summary>e.g. https://192.168.1.10:8443</summary>
+    /// <summary>e.g. https://192.168.1.222:8443</summary>
     public string BaseUrl { get; set; } = "https://localhost:8443";
 
     /// <summary>

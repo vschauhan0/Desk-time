@@ -22,6 +22,8 @@ public interface IDeviceQueryService
     Task<Paged<EventDto>> ActivityAsync(string deviceCode, TimeRange range, IReadOnlyCollection<string> eventTypes, PageRequest page, CancellationToken ct);
     Task<IReadOnlyList<SystemMetricDto>> MetricsAsync(string deviceCode, TimeRange range, int? maxPoints, CancellationToken ct);
     Task<DeviceDiagnostics> DiagnosticsAsync(string deviceCode, CancellationToken ct);
+    /// <summary>Latest hardware + installed-software snapshot for a device (404 when none reported yet).</summary>
+    Task<DeviceInventoryDto> InventoryAsync(string deviceCode, CancellationToken ct);
 }
 
 internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService security) : IDeviceQueryService
@@ -108,6 +110,17 @@ internal sealed class DeviceQueryService(IAppDbContext db, ISecurityEventService
             Math.Round(chunk.Average(m => m.MemoryAvailableMb), 0), chunk.Where(m => m.DiskUsedPercent != null).Select(m => m.DiskUsedPercent).DefaultIfEmpty().Average(),
             chunk.Where(m => m.DiskFreeGb != null).Select(m => m.DiskFreeGb).DefaultIfEmpty().Average(),
             chunk[^1].NetworkConnected, chunk[^1].BatteryPercent, chunk[^1].UptimeSeconds)).ToList();
+    }
+
+    public async Task<DeviceInventoryDto> InventoryAsync(string deviceCode, CancellationToken ct)
+    {
+        var id = await ResolveIdAsync(deviceCode, ct);
+        var code = deviceCode.Trim();
+        var inv = await db.DeviceInventories.AsNoTracking().FirstOrDefaultAsync(x => x.DeviceId == id, ct)
+            ?? throw new NotFoundException($"No inventory reported for device {code}.");
+        return new DeviceInventoryDto(code, inv.CapturedAtUtc, inv.Manufacturer, inv.Model, inv.Serial,
+            inv.OsName, inv.OsVersion, inv.OsBuild, inv.CpuModel, inv.CpuCores, inv.CpuLogical, inv.RamGb, inv.DiskTotalGb,
+            inv.Software.Select(s => new InstalledSoftwareDto(s.Name, s.Version, s.Publisher)).ToList());
     }
 
     public async Task<DeviceDiagnostics> DiagnosticsAsync(string deviceCode, CancellationToken ct)

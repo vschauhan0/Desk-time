@@ -41,7 +41,13 @@ public sealed class ScreenshotStorageOptions
     public const string Section = "ScreenshotStorage";
     /// <summary>Root directory for screenshot files. Empty = a temp directory (dev/test).</summary>
     public string Root { get; set; } = "";
+    /// <summary>Default retention for periodic screenshots, in days. Overridden by the Retention settings in the dashboard.</summary>
     public int RetentionDays { get; set; } = 14;
+    /// <summary>
+    /// Default retention for flagged screenshots and clips, in days. Longer than <see cref="RetentionDays"/> because
+    /// flagged captures are evidence. Overridden by the Retention settings in the dashboard.
+    /// </summary>
+    public int FlaggedRetentionDays { get; set; } = 90;
     /// <summary>Stop capturing/accepting screenshots when the volume has less free space than this (MB). 0 = no guard.</summary>
     public int MinFreeDiskMb { get; set; } = 2048;
 }

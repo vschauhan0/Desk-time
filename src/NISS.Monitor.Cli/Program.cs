@@ -228,6 +228,10 @@ internal sealed class Commands
                 AgentSetup.StopService(TimeSpan.FromSeconds(30));
                 AgentSetup.StartService(TimeSpan.FromSeconds(30));
                 if (File.Exists(Path.Combine(_baseDir, AgentSetup.WatchdogExe))) AgentSetup.StartService(TimeSpan.FromSeconds(20), AgentSetup.WatchdogServiceName);
+                // StopService restores the default DACL so the stop can succeed; re-assert hardening after the restart
+                // so a repair leaves the services locked again (matching a fresh install's default).
+                AgentSetup.HardenServiceAcl(AgentSetup.ServiceName);
+                if (File.Exists(Path.Combine(_baseDir, AgentSetup.WatchdogExe))) AgentSetup.HardenServiceAcl(AgentSetup.WatchdogServiceName);
             });
         }
         return 0;

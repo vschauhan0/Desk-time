@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace NISS.Monitor.Protocol;
 
 // ---------------------------------------------------------------------------------------------
@@ -143,16 +145,67 @@ public sealed record FileMonitoringPolicy(bool Enabled, IReadOnlyList<string> Pa
 public sealed record CursorSamplingPolicy(bool Enabled, int IntervalSeconds);
 
 /// <summary>
+/// Flagged-activity capture: when the foreground window matches one of <paramref name="Terms"/>, the agent takes an
+/// out-of-band screenshot (and optionally a short clip) regardless of the periodic interval.
+/// </summary>
+/// <param name="Enabled">Master switch. Off means no flagged capture at all, whatever the term list says.</param>
+/// <param name="Terms">
+/// Case-insensitive substrings matched against the foreground window title and process name. For sites the admin
+/// enters the site name ("facebook", "youtube"): browsers put the page title in the window title, so this is how a
+/// site is recognised. No URL is read or stored - see docs/screen-monitoring.md.
+/// </param>
+/// <param name="CooldownSeconds">Minimum gap between captures for the same term, so one flagged site cannot flood storage.</param>
+/// <param name="CaptureClip">Also record a short burst of frames (a "clip") when a term matches.</param>
+/// <param name="ClipSeconds">Clip length in seconds.</param>
+/// <param name="ClipFps">Clip frame rate. Frames are JPEGs replayed by the dashboard; there is no video encoder.</param>
+public sealed record FlaggedActivityPolicy(
+    bool Enabled,
+    IReadOnlyList<string> Terms,
+    int CooldownSeconds,
+    bool CaptureClip,
+    int ClipSeconds,
+    int ClipFps)
+{
+    /// <summary>The shipped default: flagged capture off, with sane values should it be switched on.</summary>
+    public static FlaggedActivityPolicy Default { get; } = new(false, [], 120, true, 10, 2);
+
+    /// <summary>Hard ceiling on frames in one clip, whatever length and rate are configured.</summary>
+    public const int MaxClipFrames = 120;
+
+    /// <summary>The frame rate actually used, clamped to the supported range. One place, so length and pacing agree.</summary>
+    public static int ClampFps(int fps) => Math.Clamp(fps, 1, 5);
+
+    /// <summary>The clip length actually used, in seconds, clamped to the supported range.</summary>
+    public static int ClampSeconds(int seconds) => Math.Clamp(seconds, 1, 60);
+
+    /// <summary>
+    /// Total frames a clip produces at the configured length and rate, clamped to <see cref="MaxClipFrames"/> so a
+    /// mistyped policy cannot emit thousands of JPEGs, overrun the upload queue and fill the screenshot volume.
+    /// </summary>
+    [JsonIgnore]
+    public int ClipFrameCount => Math.Clamp(ClampSeconds(ClipSeconds) * ClampFps(ClipFps), 1, MaxClipFrames);
+}
+
+/// <summary>
 /// Screen capture module settings. Disabled by default (the whole feature ships off).
 /// <paramref name="Enabled"/> gates periodic stored screenshots; <paramref name="LiveEnabled"/>
 /// gates on-demand live view. Quality is JPEG 1-100; MaxWidth downscales wide screens.
 /// </summary>
+/// <param name="FlaggedActivity">
+/// Flagged-activity capture. Null (an older stored policy that predates the feature) means off, via <see cref="Flagged"/>.
+/// </param>
 public sealed record ScreenCapturePolicy(
     bool Enabled,
     int IntervalSeconds,
     int Quality,
     int MaxWidth,
-    bool LiveEnabled);
+    bool LiveEnabled,
+    FlaggedActivityPolicy? FlaggedActivity = null)
+{
+    /// <summary>Flagged-activity settings, never null: a policy stored before this feature existed reads as "off".</summary>
+    [JsonIgnore]
+    public FlaggedActivityPolicy Flagged => FlaggedActivity ?? FlaggedActivityPolicy.Default;
+}
 
 /// <summary>Effective monitoring policy pushed to an agent. Every value is server-configurable.</summary>
 public sealed record AgentPolicy

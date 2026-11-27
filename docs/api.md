@@ -31,7 +31,13 @@ Login and enrollment are rate limited (5 attempts / minute / IP for login).
 | POST | `/metrics/batch` (alias `/metrics`) | same body; only `SYSTEM_METRIC` events are accepted here. |
 | GET | `/agent/config` | `AgentConfigResponse` (effective policy: global < department < device). |
 | POST | `/agent/status` | `AgentStatusRequest` -> 204. |
+| POST | `/devices/screenshots` | Raw JPEG body (max 5 MB) + metadata in the query string -> `ScreenshotUploadResult`. Idempotent per `frameId`. See [screen-monitoring.md](screen-monitoring.md). |
 | GET | `/health` | anonymous `HealthResponse`. |
+
+Screenshot upload query parameters: `frameId` (required), `monitor`, `width`, `height`, `capturedAtUtc`,
+`sessionUser`, `trigger` (`PERIODIC` \| `FLAGGED`; anything else is stored as `PERIODIC`), and, for a flagged
+capture only, `flagTerm`, `matchedOn` (`TITLE` \| `PROCESS`), `clipId`, `clipSeq`, `clipTotal`. The flag and clip
+fields are ignored unless `trigger=FLAGGED`, so an agent cannot label a periodic frame as evidence.
 
 A device whose status is `DISABLED` or `REVOKED` gets 403 on ingest, and `deviceStatus` reflects it on heartbeat.
 
@@ -55,6 +61,10 @@ A device whose status is `DISABLED` or `REVOKED` gets 403 on ingest, and `device
 | GET | `/devices/{deviceId}/diagnostics/download` | JSON attachment (ADMIN+) |
 | POST | `/devices/{deviceId}/disable`, `/enable`, `/revoke` | ADMIN+, audited |
 | POST | `/devices/{deviceId}/re-enroll` | ADMIN+, returns `EnrollmentTokenDto` (with token) bound to this device |
+| GET | `/devices/{deviceId}/screenshots` | SUPERADMIN. `Paged<ScreenshotDto>` (`from`, `to`, `trigger`=PERIODIC\|FLAGGED, `includeClipFrames`). Clips collapse to their lead frame unless `includeClipFrames=true` |
+| GET | `/devices/{deviceId}/screenshots/{id}/image` | SUPERADMIN. `image/jpeg` stream; audited as `SCREENSHOT_VIEWED` |
+| GET | `/devices/{deviceId}/screenshots/clips/{clipId}` | SUPERADMIN. `ScreenshotClipDto` - one flagged clip's frames in `clipSeq` order; audited |
+| POST | `/devices/{deviceId}/live-view/start`, `/stop`, `/switch` | SUPERADMIN. `LiveViewSessionDto` (start); live frames are never stored |
 | GET | `/applications` | `ApplicationActivityResponse` across devices (`from`, `to`, `employee`, `department`, `device`, `application`, `category`) |
 | GET | `/processes` | `Paged<ProcessSessionDto>` across devices |
 | GET | `/employees` | `Paged<EmployeeDto>` (`search`, `department`) |
@@ -164,7 +174,10 @@ that joined both groups receives it twice (dedupe on `eventId`). Notifications a
 
 Sources, later wins: `serversettings.json` -> `serversettings.local.json` (git-ignored, for secrets) -> environment variables with the
 `NISS_` prefix (`NISS_Database__ConnectionString`) -> command line. Sections: `Server`, `Dashboard`, `Database`, `Security`,
-`Monitoring`, `Retention` (as specified) plus `RateLimits` (`LoginPerMinute` 5, `RefreshPerMinute` 60, `EnrollPerMinute` 10, `IngestPerMinute` 1200) and
+`Monitoring`, `Retention` (as specified) plus `RateLimits` (`LoginPerMinute` 5, `RefreshPerMinute` 60, `EnrollPerMinute` 10, `IngestPerMinute` 1200),
+`ScreenshotStorage` (`Root`, `RetentionDays` 14, `FlaggedRetentionDays` 90, `MinFreeDiskMb` 2048 - the last two are the
+fallbacks behind the dashboard's Retention settings; see [screen-monitoring.md](screen-monitoring.md)), `ScreenLive`
+(`MaxSessionMinutes`, `MaxFps`) and
 `Workers` (`Enabled`, `HealthIntervalSeconds`, `RetentionHourLocal`, `TokenCleanupIntervalMinutes`). Kestrel binds
 `BindIp:Port`; HTTPS with `Certificate` (PFX or store thumbprint); without a certificate the server refuses to start unless
 `AllowInsecureHttp` is true. CORS allows any origin whose port equals `Dashboard:Port` (headers any, credentials allowed).

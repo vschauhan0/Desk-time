@@ -73,6 +73,9 @@ public static class PayloadCatalog
 
         d[EventTypes.SystemMetric] = Check<SystemMetricPayload>(_ => PayloadInfo.Ok());
 
+        // Periodic hardware + installed-software snapshot. All fields optional, so any well-formed payload is accepted.
+        d[EventTypes.DeviceInventory] = Check<InventoryPayload>(_ => PayloadInfo.Ok());
+
         Func<JsonElement, PayloadInfo> network = Check<NetworkPayload>(_ => PayloadInfo.Ok());
         d[EventTypes.NetworkConnected] = network;
         d[EventTypes.NetworkDisconnected] = network;

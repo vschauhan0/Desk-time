@@ -116,8 +116,14 @@ public sealed class AgentLifecycleWorker : BackgroundService
         {
             if (_identity.Current is not null)
             {
+                // Tell a benign OS shutdown apart from a deliberate stop, and attribute the latter to whoever is
+                // signed in - the server escalates only when InteractiveUser is set (see StopClassifier / the design doc).
+                var report = StopClassifier.Classify(SystemStopInfo.IsShuttingDown(), SystemStopInfo.ConsoleUser());
+                var message = report.InteractiveUser is null
+                    ? "Graceful shutdown"
+                    : $"Service stopped while {report.InteractiveUser} was signed in";
                 var draft = EventDraft.Create(EventTypes.AgentStopped, EventSources.Service, _time.GetUtcNow(),
-                    new AgentPayload(AgentVersion.Current, null, "SERVICE_STOP", "Graceful shutdown", "Service", null, _time.GetUtcNow()));
+                    new AgentPayload(AgentVersion.Current, null, report.Reason, message, "Service", null, _time.GetUtcNow(), report.InteractiveUser));
                 var env = await _factory.CreateAsync(draft, CancellationToken.None).ConfigureAwait(false);
                 if (env is not null) await _queue.EnqueueBatchAsync([env], CancellationToken.None).ConfigureAwait(false);
 

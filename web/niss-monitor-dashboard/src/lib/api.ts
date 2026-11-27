@@ -29,6 +29,7 @@ import type {
   ProcessSessionDto,
   ReportResult,
   RetentionSettings,
+  ScreenshotClipDto,
   ScreenshotDto,
   SecurityEventDto,
   SystemMetricDto,
@@ -374,6 +375,8 @@ export const api = {
     request<Paged<ScreenshotDto>>(`/devices/${enc(deviceId)}/screenshots`, { query }),
   screenshotBlob: async (deviceId: string, id: string): Promise<Blob> =>
     (await requestRaw(`/devices/${enc(deviceId)}/screenshots/${enc(id)}/image`)).blob(),
+  screenshotClip: (deviceId: string, clipId: string) =>
+    request<ScreenshotClipDto>(`/devices/${enc(deviceId)}/screenshots/clips/${enc(clipId)}`),
   startLiveView: (deviceId: string, monitor: number) =>
     request<LiveViewSessionDto>(`/devices/${enc(deviceId)}/live-view/start`, { method: "POST", query: { monitor } }),
   stopLiveView: (deviceId: string, liveSessionId: string) =>

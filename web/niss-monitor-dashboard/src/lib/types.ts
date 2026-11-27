@@ -264,6 +264,12 @@ export interface SystemMetricDto {
   uptimeSeconds: number;
 }
 
+/** Why a screenshot was captured. */
+export type ScreenTrigger = "PERIODIC" | "FLAGGED";
+
+/** Where a flagged term was recognised. */
+export type FlagMatchKind = "TITLE" | "PROCESS";
+
 export interface ScreenshotDto {
   id: string;
   capturedAtUtc: IsoString;
@@ -273,6 +279,28 @@ export interface ScreenshotDto {
   byteSize: number;
   sessionUser: string | null;
   employeeId: string | null;
+  trigger: ScreenTrigger;
+  /** The flagged term that matched, for a flagged capture. */
+  flagTerm: string | null;
+  matchedOn: FlagMatchKind | null;
+  /** Groups the frames of one clip; null on a single still. */
+  clipId: string | null;
+  clipSeq: number;
+  clipTotal: number;
+}
+
+/**
+ * One flagged-activity clip: a burst of JPEG stills the dashboard replays. There is no encoded video file, so each
+ * frame is fetched through the ordinary screenshot image endpoint.
+ */
+export interface ScreenshotClipDto {
+  clipId: string;
+  startedAtUtc: IsoString;
+  flagTerm: string | null;
+  matchedOn: FlagMatchKind | null;
+  frameCount: number;
+  expectedFrameCount: number;
+  frames: ScreenshotDto[];
 }
 
 export interface LiveViewSessionDto {
@@ -417,6 +445,7 @@ export interface ReportResult {
 
 export const REPORT_KINDS = [
   "daily",
+  "attendance",
   "application-usage",
   "active-idle",
   "device-health",
@@ -440,6 +469,34 @@ export interface CursorSamplingPolicy {
   intervalSeconds: number;
 }
 
+/**
+ * Flagged-activity capture. `terms` are case-insensitive substrings matched against the foreground window title and
+ * process name — for a website the admin types the site name, because browsers put the page title in the window
+ * title. No URL is read or stored.
+ */
+export interface FlaggedActivityPolicy {
+  enabled: boolean;
+  terms: string[];
+  /** Minimum gap between captures for the same term. */
+  cooldownSeconds: number;
+  captureClip: boolean;
+  clipSeconds: number;
+  clipFps: number;
+}
+
+export interface ScreenCapturePolicy {
+  /** Periodic stored screenshots. */
+  enabled: boolean;
+  intervalSeconds: number;
+  /** JPEG quality, 1-100. */
+  quality: number;
+  /** Wide screens are downscaled to this width. */
+  maxWidth: number;
+  /** On-demand live view (independent of stored screenshots). */
+  liveEnabled: boolean;
+  flaggedActivity: FlaggedActivityPolicy;
+}
+
 export interface AgentPolicy {
   version: number;
   heartbeatSeconds: number;
@@ -456,6 +513,7 @@ export interface AgentPolicy {
   processExclusions: string[];
   fileMonitoring: FileMonitoringPolicy;
   cursorSampling: CursorSamplingPolicy;
+  screenCapture: ScreenCapturePolicy;
   usbMonitoringEnabled: boolean;
   uploadBatchSize: number;
   uploadIntervalSeconds: number;
@@ -494,6 +552,10 @@ export interface RetentionSettings {
   applicationSummariesDays: number;
   deviceHealthDays: number;
   auditLogsDays: number;
+  /** Periodic screenshots. */
+  screenshotDays: number;
+  /** Flagged screenshots and clips, normally kept longer because they are the evidence. */
+  flaggedScreenshotDays: number;
 }
 
 export interface HealthThresholds {
@@ -707,6 +769,7 @@ export const SECURITY_EVENT_KINDS = [
   "DEVICE_OFFLINE",
   "DEVICE_RECOVERED",
   "SERVICE_STOPPED",
+  "TAMPER_SUSPECTED",
   "SESSION_AGENT_MISSING",
   "AGENT_OUTDATED",
   "UPLOAD_FAILURE",

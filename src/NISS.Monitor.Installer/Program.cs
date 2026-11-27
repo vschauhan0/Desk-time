@@ -11,7 +11,7 @@ namespace NISS.Monitor.Installer;
 /// NISSMonitorSetup.exe - installer / repair / uninstaller for the NISS endpoint agent. Requires administrator rights
 /// (manifest). Uses only standard Windows mechanisms and leaves everything visible to administrators.
 ///
-///   NISSMonitorSetup.exe [/silent] --server https://192.168.1.10:8443 --token XXXX [--employee EMP1024] [--thumbprint HEX]
+///   NISSMonitorSetup.exe [/silent] --server https://192.168.1.222:8443 --token XXXX [--employee EMP1024] [--thumbprint HEX]
 ///   NISSMonitorSetup.exe --repair
 ///   NISSMonitorSetup.exe --uninstall [--purge]
 /// </summary>
@@ -70,6 +70,7 @@ internal sealed class Options
     public bool Silent { get; private set; }
     public bool Purge { get; private set; }
     public bool SkipEnroll { get; private set; }
+    public bool NoServiceHardening { get; private set; }
     public string InstallDir { get; private set; } = AgentSetup.DefaultInstallDir;
     public string? Server { get; set; }
     public string? Token { get; set; }
@@ -90,6 +91,7 @@ internal sealed class Options
                 case "repair": o.Mode = Mode.Repair; break;
                 case "purge": o.Purge = true; break;
                 case "no-enroll": o.SkipEnroll = true; break;
+                case "no-service-hardening": o.NoServiceHardening = true; break;
                 case "server": o.Server = Next(); break;
                 case "token": o.Token = Next(); break;
                 case "employee": o.Employee = Next(); break;
@@ -171,12 +173,14 @@ internal sealed class Steps
             return $"server {_o.Server}";
         });
 
-        Step("Installing Windows service with recovery actions", () => { AgentSetup.InstallOrUpdateService(_o.InstallDir, _log.Write); return AgentSetup.ServiceName; });
+        var harden = !_o.NoServiceHardening;
+        Step("Installing Windows service with recovery actions", () => { AgentSetup.InstallOrUpdateService(_o.InstallDir, _log.Write, harden); return AgentSetup.ServiceName; });
         Step("Installing watchdog service", () =>
         {
             // The watchdog restarts the main service if anyone stops it (Task Manager, sc stop, Services.msc);
             // the main service runs the mirror-image check for the watchdog. Both stay ordinary, visible services.
-            AgentSetup.InstallOrUpdateWatchdogService(_o.InstallDir, _log.Write);
+            // With hardening on (default), administrators also cannot stop/delete either service with the usual tools.
+            AgentSetup.InstallOrUpdateWatchdogService(_o.InstallDir, _log.Write, harden);
             return AgentSetup.WatchdogServiceName;
         });
         Step("Registering session agent startup", () => { AgentSetup.SetSessionRunKey(_o.InstallDir); return "HKLM Run key + service launcher"; });

@@ -30,15 +30,21 @@ internal sealed class FileScreenshotStore(
         if (minFreeMb > 0 && !ScreenshotDiskGuard.HasSpace(FreeBytes(Root), minFreeMb))
             throw new AppException(507, "Insufficient storage", "Screenshot storage is low on disk; capture paused.");
 
+        var id = Guid.NewGuid();
         var day = input.CapturedAtUtc.UtcDateTime.ToString("yyyy-MM-dd");
-        var rel = Path.Combine(Sanitize(input.DeviceCode), day, $"{input.CapturedAtUtc.UtcTicks}-{input.Monitor}.jpg");
+        // The row id is part of the name so two captures can never share a file. Timestamp + monitor alone collide:
+        // clip frames are milliseconds apart, and a flagged still can land in the same tick as a periodic one - the
+        // second write would then overwrite the first and deleting either row would take the other's image with it.
+        var clip = input.ClipId is null ? "" : $"-c{input.ClipSeq:D4}";
+        var rel = Path.Combine(Sanitize(input.DeviceCode), day,
+            $"{input.CapturedAtUtc.UtcTicks}-{input.Monitor}{clip}-{id:N}.jpg");
         var full = Path.Combine(Root, rel);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         await File.WriteAllBytesAsync(full, jpeg, ct);
 
         var shot = new Screenshot
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             DeviceId = input.DeviceId,
             EmployeeId = input.EmployeeId,
             SessionUser = input.SessionUser,
@@ -50,6 +56,12 @@ internal sealed class FileScreenshotStore(
             RelPath = rel,
             FrameId = input.FrameId,
             CreatedAt = clock.GetUtcNow(),
+            Trigger = input.Trigger,
+            FlagTerm = input.FlagTerm,
+            MatchedOn = input.MatchedOn,
+            ClipId = input.ClipId,
+            ClipSeq = input.ClipSeq,
+            ClipTotal = input.ClipTotal,
         };
         db.Screenshots.Add(shot);
         await db.SaveChangesAsync(ct);

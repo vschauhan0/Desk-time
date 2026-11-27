@@ -35,6 +35,7 @@
   "ScreenshotStorage": {
     "Root": "",
     "RetentionDays": 14,
+    "FlaggedRetentionDays": 90,
     "MinFreeDiskMb": 2048
   },
   "ScreenLive": {

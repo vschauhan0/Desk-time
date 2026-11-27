@@ -8,7 +8,7 @@
          -> local SQLite DB -> enroll -> start -> validate.
 
 .EXAMPLE
-  .\Install.ps1 -Payload .\NISSMonitorPayload.zip -Server https://192.168.1.10:8443 -Token ABC123 -Thumbprint 3F2A...
+  .\Install.ps1 -Payload .\NISSMonitorPayload.zip -Server https://192.168.1.222:8443 -Token ABC123 -Thumbprint 3F2A...
 #>
 [CmdletBinding()]
 param(
@@ -18,7 +18,8 @@ param(
     [string]$Employee,                            # optional employee code, e.g. EMP1024
     [string]$Thumbprint,                          # SHA-256 (or SHA-1) thumbprint of the server certificate to pin
     [string]$InstallDir = (Join-Path $env:ProgramFiles 'NISS\Monitor'),
-    [string]$DataDir = (Join-Path $env:ProgramData 'NISS\Agent')
+    [string]$DataDir = (Join-Path $env:ProgramData 'NISS\Agent'),
+    [switch]$NoServiceHardening                   # skip the service-ACL lock (admins keep the usual stop/delete rights)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,13 @@ $wdDesc = 'Keeps the NISS Employee Monitoring Service running. Authorized NISS e
 function Step($msg) { Write-Host "[..] $msg" -ForegroundColor Cyan }
 function Ok($msg) { Write-Host "[ok] $msg" -ForegroundColor Green }
 
+# Service-ACL hardening (layer-2 anti-tamper), kept identical to AgentSetup.cs. DACL-only (no SACL => no
+# SeSecurityPrivilege needed). Hardened: Administrators lose WP (STOP) and SD (DELETE) but keep DC/WD so this
+# installer and a deliberate admin can still re-assert control. SYSTEM keeps full control (SCM recovery + watchdog).
+$HardenedSddl = 'D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPDTLOCRRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+$DefaultSddl  = 'D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+function Set-ServiceSd($name, $sddl) { if (Get-Service $name -ErrorAction SilentlyContinue) { & sc.exe sdset $name $sddl | Out-Null } }
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Run this script from an elevated (administrator) PowerShell.'
 }
@@ -44,6 +52,10 @@ if ($build -lt 17763 -or -not [Environment]::Is64BitOperatingSystem) { throw "Un
 Ok "Windows build $build"
 
 Step 'Stopping existing services and session agents'
+# A previous install may have hardened the service ACL (STOP denied to admins); restore default rights first so the
+# stop below succeeds. No-op on a fresh machine or when the services do not exist yet.
+Set-ServiceSd $wdSvc $DefaultSddl
+Set-ServiceSd $svc $DefaultSddl
 # Stop the watchdog first - otherwise it notices the main service going down and restarts it mid-install.
 if (Get-Service $wdSvc -ErrorAction SilentlyContinue) { Stop-Service $wdSvc -Force -ErrorAction SilentlyContinue; (Get-Service $wdSvc).WaitForStatus('Stopped', '00:00:15') }
 if (Get-Service $svc -ErrorAction SilentlyContinue) { Stop-Service $svc -Force -ErrorAction SilentlyContinue; (Get-Service $svc).WaitForStatus('Stopped', '00:00:40') }
@@ -129,6 +141,16 @@ Step 'Starting services'
 Start-Service $svc; (Get-Service $svc).WaitForStatus('Running', '00:00:40')
 Start-Service $wdSvc; (Get-Service $wdSvc).WaitForStatus('Running', '00:00:20')
 Ok 'Service + watchdog running'
+
+if ($NoServiceHardening) {
+    Set-ServiceSd $svc $DefaultSddl; Set-ServiceSd $wdSvc $DefaultSddl
+    Write-Warning 'Service-ACL hardening skipped (-NoServiceHardening): administrators can stop/delete the services normally.'
+} else {
+    Step 'Hardening service ACLs (administrators can no longer stop/delete with the usual tools)'
+    Set-ServiceSd $svc $HardenedSddl
+    Set-ServiceSd $wdSvc $HardenedSddl
+    Ok 'Services locked (a deliberate admin can still re-assert control; see docs\security.md)'
+}
 
 Step 'Validating communication with the server'
 $healthy = $false

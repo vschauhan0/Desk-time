@@ -136,7 +136,10 @@ public sealed record AgentPayload(
     string? Message,
     string? Component,
     bool? UnexpectedPreviousShutdown,
-    DateTimeOffset? LastKnownAliveUtc);
+    DateTimeOffset? LastKnownAliveUtc,
+    // Set only on a deliberate AGENT_STOPPED (service stopped while a user was signed in and the OS was not shutting
+    // down). Null for a benign shutdown and absent on older agents, so it can never raise a false tamper alert.
+    string? InteractiveUser = null);
 
 /// <summary>Logical disk information inside <see cref="SystemMetricPayload"/>.</summary>
 public sealed record DiskInfo(string Name, double TotalGb, double FreeGb, double UsedPercent);
@@ -161,3 +164,24 @@ public sealed record SystemMetricPayload(
     BatteryInfo? Battery,
     IReadOnlyList<DisplayInfo> Displays,
     string? CurrentUser);
+
+/// <summary>One installed program, carried in <see cref="InventoryPayload"/>.</summary>
+public sealed record InstalledSoftware(string Name, string? Version, string? Publisher);
+
+/// <summary>
+/// DEVICE_INVENTORY: a periodic snapshot (on start + daily) of hardware facts and installed software.
+/// Not time-series - the server keeps the latest snapshot per device. All fields optional for forward compatibility.
+/// </summary>
+public sealed record InventoryPayload(
+    string? Manufacturer,
+    string? Model,
+    string? Serial,
+    string? OsName,
+    string? OsVersion,
+    string? OsBuild,
+    string? CpuModel,
+    int? CpuCores,
+    int? CpuLogical,
+    double? RamGb,
+    double? DiskTotalGb,
+    IReadOnlyList<InstalledSoftware> Software);

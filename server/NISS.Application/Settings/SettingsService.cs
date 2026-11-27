@@ -34,16 +34,27 @@ public static class SettingKeys
 
 internal sealed class SettingsService(
     IAppDbContext db, IMemoryCache cache, TimeProvider clock,
-    IOptions<RetentionOptions> retentionDefaults, IOptions<MonitoringOptions> monitoringDefaults) : ISettingsService
+    IOptions<RetentionOptions> retentionDefaults, IOptions<MonitoringOptions> monitoringDefaults,
+    IOptions<ScreenshotStorageOptions> screenshotDefaults) : ISettingsService
 {
     private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(15);
 
-    public async Task<RetentionSettings> GetRetentionAsync(CancellationToken ct) =>
-        await GetJsonAsync(SettingKeys.Retention, () =>
+    public async Task<RetentionSettings> GetRetentionAsync(CancellationToken ct)
+    {
+        var stored = await GetJsonAsync(SettingKeys.Retention, () =>
         {
             var r = retentionDefaults.Value;
             return new RetentionSettings(r.RawEventsDays, r.ApplicationSummariesDays, r.DeviceHealthDays, r.AuditLogsDays);
         }, ct);
+        // Screenshot values were added after this settings row first shipped: a row written before then has them null,
+        // so fall back to the serversettings.json defaults rather than reading null as "keep forever".
+        var shots = screenshotDefaults.Value;
+        return stored with
+        {
+            ScreenshotDays = stored.ScreenshotDays ?? shots.RetentionDays,
+            FlaggedScreenshotDays = stored.FlaggedScreenshotDays ?? shots.FlaggedRetentionDays,
+        };
+    }
 
     public Task SetRetentionAsync(RetentionSettings value, CancellationToken ct) => SetJsonAsync(SettingKeys.Retention, value, ct);
 

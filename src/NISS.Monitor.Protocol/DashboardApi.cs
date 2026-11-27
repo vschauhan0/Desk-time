@@ -12,6 +12,12 @@ namespace NISS.Monitor.Protocol;
 public sealed record Paged<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 
 /// <summary>One stored screenshot's metadata for the dashboard timeline (the JPEG is fetched separately).</summary>
+/// <param name="Trigger">One of <see cref="ScreenTriggers"/>: why the frame was captured.</param>
+/// <param name="FlagTerm">The flagged term that matched, for a flagged capture.</param>
+/// <param name="MatchedOn">One of <see cref="FlagMatchKinds"/>, for a flagged capture.</param>
+/// <param name="ClipId">Groups the frames of one clip; null on a single still.</param>
+/// <param name="ClipSeq">0-based position within the clip.</param>
+/// <param name="ClipTotal">Frames the clip was expected to contain.</param>
 public sealed record ScreenshotDto(
     Guid Id,
     DateTimeOffset CapturedAtUtc,
@@ -20,7 +26,26 @@ public sealed record ScreenshotDto(
     int Height,
     int ByteSize,
     string? SessionUser,
-    Guid? EmployeeId);
+    Guid? EmployeeId,
+    string Trigger = ScreenTriggers.Periodic,
+    string? FlagTerm = null,
+    string? MatchedOn = null,
+    Guid? ClipId = null,
+    int ClipSeq = 0,
+    int ClipTotal = 0);
+
+/// <summary>
+/// One flagged-activity clip: its frames in order. A clip is a burst of JPEG stills the dashboard replays, not an
+/// encoded video, so each frame is fetched through the ordinary screenshot image endpoint.
+/// </summary>
+public sealed record ScreenshotClipDto(
+    Guid ClipId,
+    DateTimeOffset StartedAtUtc,
+    string? FlagTerm,
+    string? MatchedOn,
+    int FrameCount,
+    int ExpectedFrameCount,
+    IReadOnlyList<ScreenshotDto> Frames);
 
 /// <summary>A started live-view session: the SignalR group the dashboard joins to receive frames.</summary>
 public sealed record LiveViewSessionDto(Guid LiveSessionId, string DeviceId, string HubGroup, int Monitor, DateTimeOffset StartedAtUtc);
@@ -156,6 +181,26 @@ public sealed record LiveDeviceCard(
     string? UserName);
 
 /// <summary>GET /devices/{deviceId}.</summary>
+/// <summary>One installed program in a device's inventory.</summary>
+public sealed record InstalledSoftwareDto(string Name, string? Version, string? Publisher);
+
+/// <summary>Latest hardware + installed-software snapshot for a device (dashboard read model).</summary>
+public sealed record DeviceInventoryDto(
+    string DeviceId,
+    DateTimeOffset? CapturedAtUtc,
+    string? Manufacturer,
+    string? Model,
+    string? Serial,
+    string? OsName,
+    string? OsVersion,
+    string? OsBuild,
+    string? CpuModel,
+    int? CpuCores,
+    int? CpuLogical,
+    double? RamGb,
+    double? DiskTotalGb,
+    IReadOnlyList<InstalledSoftwareDto> Software);
+
 public sealed record DeviceDetail(
     DeviceSummary Summary,
     LiveDeviceCard Live,
@@ -349,7 +394,21 @@ public sealed record PolicyUpsert(string Name, string Scope, string? ScopeValue,
 public sealed record AppCategoryRule(Guid Id, string Pattern, string Category, int Priority);
 
 /// <summary>Retention settings in days (0 = keep forever).</summary>
-public sealed record RetentionSettings(int RawEventsDays, int ApplicationSummariesDays, int DeviceHealthDays, int AuditLogsDays);
+/// <param name="ScreenshotDays">
+/// Periodic screenshots. Null means "fall back to the <c>ScreenshotStorage:RetentionDays</c> server setting", which is
+/// what a settings row written before screenshot retention was configurable here deserialises to.
+/// </param>
+/// <param name="FlaggedScreenshotDays">
+/// Flagged screenshots and clips, kept on their own (normally longer) schedule because they are the evidence an
+/// administrator comes back to. Null falls back to <c>ScreenshotStorage:FlaggedRetentionDays</c>.
+/// </param>
+public sealed record RetentionSettings(
+    int RawEventsDays,
+    int ApplicationSummariesDays,
+    int DeviceHealthDays,
+    int AuditLogsDays,
+    int? ScreenshotDays = null,
+    int? FlaggedScreenshotDays = null);
 
 /// <summary>Server-side monitoring thresholds (seconds unless noted).</summary>
 public sealed record HealthThresholds(int HeartbeatWarningSeconds, int OfflineSeconds, int BacklogWarningThreshold, string? MinAgentVersion);

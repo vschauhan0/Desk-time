@@ -57,7 +57,7 @@ public static class DependencyInjection
         {
             typeof(ProcessProjector), typeof(ApplicationSessionProjector), typeof(UserSessionProjector), typeof(IdleSessionProjector),
             typeof(InputActivityProjector), typeof(UsbProjector), typeof(FileProjector), typeof(SystemMetricProjector),
-            typeof(NetworkProjector), typeof(AgentEventProjector),
+            typeof(NetworkProjector), typeof(AgentEventProjector), typeof(DeviceInventoryProjector),
         })
             services.AddScoped(typeof(IEventProjector), projector);
 
@@ -75,7 +75,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         foreach (var generator in new[]
         {
-            typeof(DailyReport), typeof(ApplicationUsageReport), typeof(ActiveIdleReport), typeof(DeviceHealthReport),
+            typeof(DailyReport), typeof(ApplicationUsageReport), typeof(ActiveIdleReport), typeof(AttendanceReport), typeof(DeviceHealthReport),
             typeof(ProcessTimelineReport), typeof(UsbReport), typeof(AgentHealthReport), typeof(DepartmentSummaryReport),
         })
             services.AddScoped(typeof(IReportGenerator), generator);

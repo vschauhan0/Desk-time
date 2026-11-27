@@ -40,6 +40,7 @@ Conventions
 | `idle_sessions` | a non-active period | `kind` = `IDLE` / `LOCKED` / `DISCONNECTED`; `started_at`, `ended_at`, `duration_seconds` | `IDLE_*`, `SESSION_LOCK/UNLOCK`, `SESSION_CONNECT/DISCONNECT` |
 | `system_metrics` | one metric sample | `id` = event id; cpu, memory, disk (first/`C:` disk), network, battery, uptime | `SYSTEM_METRIC` |
 | `usb_events`, `file_events` | USB connect/disconnect, file metadata | `id` = event id | `USB_*`, `FILE_*` |
+| `screenshots` | one stored screen capture (the JPEG itself is a file on disk; this row is the index) | `id`; unique `(device_id, frame_id)`; `captured_at_utc`, `session_user`, `employee_id`, `monitor_index`, `width`, `height`, `byte_size`, `rel_path`, `trigger` (`PERIODIC`/`FLAGGED`), `flag_term`, `matched_on` (`TITLE`/`PROCESS`), `clip_id`, `clip_seq`, `clip_total` | `POST /devices/screenshots` (not the event pipeline) |
 
 ### Health and live state
 
@@ -83,7 +84,8 @@ reports). Additional: `event_ingestion (device_id, event_type, timestamp)` and `
 `application_sessions (employee_id, started_at)` and `(process_name)`; partial indexes for open rows
 (`ended_at IS NULL` / `logout_at IS NULL` / `resolved_at IS NULL`); unique `input_activity (device_id, timestamp)`;
 unique `devices (device_id)`, `devices (machine_guid) WHERE machine_guid IS NOT NULL`, `enrollment_tokens (token_hash)`,
-`refresh_tokens (token_hash)`.
+`refresh_tokens (token_hash)`; `screenshots (device_id, trigger, captured_at_utc)` for the filtered timeline and the
+split retention pass, and `screenshots (clip_id, clip_seq)` to read one clip's frames in order.
 
 ## Idempotency and ordering
 
@@ -104,6 +106,13 @@ presence/foreground updates are ignored).
 | `ApplicationSummariesDays` (365) | `application_sessions`, `process_sessions` (finished ones), `user_sessions` (finished ones) |
 | `DeviceHealthDays` (180) | `system_metrics`, `heartbeats`, `security_events` (resolved ones) |
 | `AuditLogsDays` (365) | `audit_logs` |
+| `ScreenshotDays` (14) | `screenshots` where `trigger <> 'FLAGGED'` - **deletes the JPEG files too** |
+| `FlaggedScreenshotDays` (90) | `screenshots` where `trigger = 'FLAGGED'` - flagged captures and clips, kept longer because they are the evidence |
+
+Screenshots are the one exception to the batched `ctid` delete: rows and their files are removed together through
+`IScreenshotStore` (a raw `ExecuteDelete` would orphan the images on disk). The two screenshot values fall back to
+`ScreenshotStorage:RetentionDays` / `FlaggedRetentionDays` in `serversettings.json` when unset. See
+[screen-monitoring.md](screen-monitoring.md).
 
 Expired refresh tokens (7 days after expiry) are always removed; the `EnrollmentTokenCleanupWorker` removes tokens that expired more
 than 7 days ago or were used more than 30 days ago.

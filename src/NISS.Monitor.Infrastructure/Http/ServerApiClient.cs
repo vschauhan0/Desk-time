@@ -112,7 +112,12 @@ public sealed class ServerApiClient
         var captured = new DateTimeOffset(header.CapturedAtUtcTicks, TimeSpan.Zero);
         var url = Url("/api/v1/devices/screenshots")
             + $"?frameId={Uri.EscapeDataString(frameId)}&monitor={header.Monitor}&width={header.Width}&height={header.Height}"
-            + $"&capturedAtUtc={Uri.EscapeDataString(captured.ToString("o"))}";
+            + $"&capturedAtUtc={Uri.EscapeDataString(captured.ToString("o"))}"
+            + $"&trigger={Uri.EscapeDataString(header.Trigger)}";
+        if (!string.IsNullOrEmpty(header.SessionUser)) url += $"&sessionUser={Uri.EscapeDataString(header.SessionUser)}";
+        if (!string.IsNullOrEmpty(header.FlagTerm)) url += $"&flagTerm={Uri.EscapeDataString(header.FlagTerm)}";
+        if (!string.IsNullOrEmpty(header.MatchedOn)) url += $"&matchedOn={Uri.EscapeDataString(header.MatchedOn)}";
+        if (header.ClipId is { } clip) url += $"&clipId={clip:D}&clipSeq={header.ClipSeq}&clipTotal={header.ClipTotal}";
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, url);

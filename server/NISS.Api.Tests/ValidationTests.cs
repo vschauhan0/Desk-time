@@ -85,7 +85,8 @@ public sealed class ValidationTests(ApiFactory factory) : IClassFixture<ApiFacto
         var admin = await factory.AdminAsync();
         Assert.Contains("email", (await ErrorsAsync(await admin.PostJsonAsync("/api/v1/employees", new EmployeeUpsert("E1", "Name", null, "not-an-email", true)))).Keys);
         Assert.Contains("employeeCode", (await ErrorsAsync(await admin.PostJsonAsync("/api/v1/employees", new EmployeeUpsert("", "Name", null, null, true)))).Keys);
-        Assert.Contains("expiresInHours", (await ErrorsAsync(await admin.PostJsonAsync("/api/v1/enrollment-tokens", new EnrollmentTokenRequest(null, null, 0, null)))).Keys);
+        // 0 hours now means "never expires" (valid); an out-of-range value is still rejected.
+        Assert.Contains("expiresInHours", (await ErrorsAsync(await admin.PostJsonAsync("/api/v1/enrollment-tokens", new EnrollmentTokenRequest(null, null, -1, null)))).Keys);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.PostJsonAsync("/api/v1/enrollment-tokens", new EnrollmentTokenRequest(null, "PC-9999", 24, null))).StatusCode);
     }
 

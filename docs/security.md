@@ -1,8 +1,12 @@
 # Security guide
 
 This is an **authorized, transparent** monitoring product. The agent is a normal Windows service visible in `services.msc`,
-installed under Program Files, removable by administrators. It contains no rootkit, stealth, kernel-bypass, credential-theft or
-anti-admin mechanisms and never defeats Windows security controls.
+installed under Program Files. It contains no rootkit, stealth, kernel-bypass, credential-theft or code-injection mechanisms
+and never defeats Windows security controls. By default the installer applies a **hardened service ACL** (a standard,
+documented Windows access-control measure - not stealth) so the services cannot be stopped or deleted with the usual tools by
+a local administrator; an administrator can still re-assert control deliberately and remove the agent via the official
+uninstaller. See [Preventing unauthorised removal](#preventing-unauthorised-removal-defence-in-depth) and
+[least-privilege-rollout.md](least-privilege-rollout.md).
 
 ## Threat model in one page
 
@@ -40,16 +44,35 @@ login/logout/process events. (A local user *can* stop their own session process 
 6. Trust `server.cer` on admin PCs (`Trust-NissCertificate.ps1`) so browsers show no warning.
 7. Give the VIEWER role to people who only need to read; ADMIN only where actions are required.
 
-## Preventing unauthorised removal (organization policy)
+## Preventing unauthorised removal (defence in depth)
 
-The agent deliberately does **not** try to hide or protect itself from administrators. Restrict removal with standard Windows management:
+No software can make itself truly unkillable by someone holding local-administrator rights on the machine - not this agent,
+not commercial EDR. A determined admin always wins eventually (safe mode, offline disk, resetting the service ACL). The
+dishonest alternative - a rootkit that hides from or fights the machine's owner - would get the agent flagged as malware and
+destroy the lawful, *disclosed*-monitoring basis this product depends on, so it is deliberately out of scope. The goal is
+therefore **"can't be killed by people who shouldn't, and instantly caught when someone who can does"**, delivered in layers:
 
-* Employees should be **standard users**: they cannot stop/delete the service or write to `C:\Program Files\NISS` or `C:\ProgramData\NISS`.
-* Deploy/upgrade/remove only through your management tooling (Intune, GPO, SCCM, RMM) using `NISSMonitorSetup.exe` or `Install.ps1`.
-* Optionally restrict the service ACL via GPO (Computer Configuration > Windows Settings > Security Settings > System Services >
-  NISSMonitorService > Security) so only Administrators/SYSTEM can control it.
-* Use AppLocker / WDAC to allow only signed NISS binaries (sign the binaries with your code-signing certificate).
-* Use the dashboard's health view: a stopped/uninstalled agent shows as `SERVICE_STOPPED` or `OFFLINE`, and an unclean stop is reported on the next start.
+1. **Least privilege (the real fix).** A standard (non-admin) user cannot stop/delete the services, kill the SYSTEM
+   processes, or write to `C:\Program Files\NISS` / `C:\ProgramData\NISS`. Removing local-admin rights from employees makes
+   the agent genuinely unremovable for everyone who does not need admin. Audit who still has it with
+   `deployment\scripts\Audit-LocalAdmins.ps1`; the full playbook (including technical staff who need admin) is in
+   [least-privilege-rollout.md](least-privilege-rollout.md).
+2. **Hardened service ACL (on by default).** The installer applies a DACL that denies **STOP** and **DELETE** to
+   Administrators on both services, so Services.msc, Task Manager's Services tab, `net stop`, `sc stop` and `sc delete` are
+   refused even to an admin. SYSTEM keeps full control (so SCM recovery and the peer watchdog still work), and Administrators
+   keep WRITE_DAC/change-config so the official uninstaller/repair - and a deliberate admin who runs `sc sdset` - can still
+   re-assert control. This is a **speed bump plus detection, not a wall**: it defeats every casual/one-click stop and forces a
+   deliberate, logged command-line act. Opt out with `NISSMonitorSetup.exe --no-service-hardening` or `Install.ps1
+   -NoServiceHardening`.
+3. **Tamper detection (catches the rest).** The dashboard health view already shows a stopped/uninstalled agent as
+   `SERVICE_STOPPED` / `OFFLINE` and reports an unclean stop on the next start. Active, attributed tamper alerting (which PC,
+   which user, when) is layer 3 of the anti-tamper work.
+4. **Signed binaries + allow-listing.** Sign the binaries with your code-signing certificate and use AppLocker / WDAC to run
+   only signed NISS binaries, so the executables cannot be replaced or silently swapped.
+
+Deploy/upgrade/remove only through your management tooling (Intune, GPO, SCCM, RMM) using `NISSMonitorSetup.exe` or
+`Install.ps1`. Set local-admin membership **explicitly** via Restricted Groups / Intune so a demoted user cannot simply
+re-add themselves.
 
 ## Data minimisation and transparency
 
@@ -69,14 +92,17 @@ practice: a killed service is back within 5-13 seconds, well under the two servi
 for the session tracker and well inside a 15-second target.
 
 Both services remain completely ordinary and visible - `sc query`, Services.msc, and Task Manager's Services tab all
-show both, with normal descriptions. This is not tamper protection: an administrator who wants to stop monitoring
-permanently still can, by disabling (Startup type: Disabled) or deleting both services, or by running the official
-uninstaller. It only defeats a single casual "End Task" on one of the two processes.
+show both, with normal descriptions. The watchdog is complementary to the hardened service ACL above: the ACL denies an
+admin the SCM **Stop**/**Delete** (Services.msc, `net stop`, `sc stop`, `sc delete`), while the watchdog covers a
+process-level **End Task** (which terminates the process rather than stopping the service, and is a different right the ACL
+does not govern). Together they defeat every one-click GUI route. Neither is a wall: a deliberate admin can still disable
+(Startup type: Disabled) + reboot, reset the ACL with `sc sdset`, or run the official uninstaller - all deliberate,
+command-line acts that tamper detection (layer 3) is there to catch.
 
 ## Known limitations
 
-* A local administrator can permanently disable or remove the agent (by design - see above). The server detects and shows it, but cannot prevent it.
+* A local administrator can still *deliberately* remove the agent (reset the service ACL with `sc sdset`, disable + reboot, or run the official uninstaller) - by design; the hardened ACL blocks the casual one-click routes, not a determined admin. The server detects and shows it, but cannot prevent it. The durable fix is to not grant employees local admin ([least-privilege-rollout.md](least-privilege-rollout.md)).
+* With service hardening on (default), an admin's Services.msc/`net stop`/`sc stop`/`sc delete` is refused; a process-level "End Task" still terminates the process, and the mutual watchdog restarts it within one poll interval (~5-13 s). Ending *both* processes at the same instant, or disabling a Startup type, is a deliberate act the watchdog cannot recover from - caught by detection, not prevented.
 * A standard user can end their own `NISSMonitor.Session.exe` process; the service notices (session agent missing) and relaunches it within seconds.
-* A local administrator can stop either `NISSMonitorService` or `Watchdog` via Task Manager - the mutual watchdog restarts it within one poll interval (~5-13 s), but stopping *both* at the same instant (or disabling either one's Startup type) is not something the other can recover from, by design (see above).
 * Process start/stop uses a 2-second snapshot diff: processes that live < 2 s can be missed.
 * The service does not sign its binaries; sign them before wide rollout.

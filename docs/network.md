@@ -1,11 +1,11 @@
 # Network configuration guide
 
-Everything is LAN-only. Example: central PC `192.168.1.10`.
+Everything is LAN-only. Example: central PC `192.168.1.222`.
 
 | Component | Where | Default | Configure in |
 |---|---|---|---|
-| API (REST + SignalR) | central PC | `https://192.168.1.10:8443` | `server\NISS.Api\serversettings.json` -> `Server:BindIp`, `Server:Port` |
-| Dashboard | central PC | `http://192.168.1.10:3000` | `serversettings.json` -> `Dashboard:Port` (used by CORS + the launcher) |
+| API (REST + SignalR) | central PC | `https://192.168.1.222:8443` | `server\NISS.Api\serversettings.json` -> `Server:BindIp`, `Server:Port` |
+| Dashboard | central PC | `http://192.168.1.222:3000` | `serversettings.json` -> `Dashboard:Port` (used by CORS + the launcher) |
 | PostgreSQL | central PC | `localhost:5432` | `serversettings.json` -> `Database:ConnectionString` |
 | Agent -> API | each employee PC | `Agent:Server:BaseUrl` | `C:\Program Files\NISS\Monitor\agentsettings.json` |
 
@@ -38,7 +38,7 @@ create the certificate with it: `.\deployment\certificates\New-NissServerCertifi
 
 The dashboard is served by Next.js on port 3000 and calls the API directly from the browser. It resolves the API base URL at runtime:
 `public/runtime-config.json` `apiBaseUrl` (written by `NISS.Server.Start.ps1`), otherwise `https://<the host you opened the dashboard on>:8443`.
-So opening `http://192.168.1.10:3000` automatically talks to `https://192.168.1.10:8443`.
+So opening `http://192.168.1.222:3000` automatically talks to `https://192.168.1.222:8443`.
 
 ## Clock synchronisation
 

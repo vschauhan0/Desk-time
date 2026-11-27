@@ -30,6 +30,8 @@ internal static class Program
         // Screen monitoring runs alongside the runtime; it stays inert until the server policy enables capture and
         // never takes the session helper down on its own (every path is best-effort).
         var screen = new SessionScreenCapture(new GdiScreenCaptureService(), new Win32IdleMonitor(), () => window.IsLocked, m => log.Info("[screen] " + m));
+        // Flagged-activity detection reuses the runtime's foreground poll instead of polling the desktop a second time.
+        runtime.ForegroundObserver = screen.NotifyForeground;
         var screenTask = screen.RunAsync(cts.Token);
 
         try

@@ -8,13 +8,15 @@ import { Dialog, Time } from "@/components/ui/widgets";
 import { useAction } from "@/hooks/use-action";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/lib/api";
-import { DEFAULT_POLICY, validatePolicy } from "@/lib/policy";
+import { DEFAULT_POLICY, normalizePolicy, validatePolicy } from "@/lib/policy";
 import type { AgentPolicy, PolicyDto, PolicyUpsert } from "@/lib/types";
 import { ListField, NumberField, SectionTitle, ToggleField } from "./form-fields";
+import { ScreenCaptureFields } from "./screen-capture-fields";
 
 function PolicyForm({ policy, saving, error, onSave }: { policy: PolicyDto; saving: boolean; error: string | null; onSave: (body: PolicyUpsert) => void }) {
   const [name, setName] = useState(policy.name);
-  const [draft, setDraft] = useState<AgentPolicy>(policy.policy);
+  // Normalised on load: a policy saved before screen capture existed arrives without those sub-objects.
+  const [draft, setDraft] = useState<AgentPolicy>(() => normalizePolicy(policy.policy));
   const issues = useMemo(() => validatePolicy(draft), [draft]);
   const set = <K extends keyof AgentPolicy>(key: K, value: AgentPolicy[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -66,6 +68,13 @@ function PolicyForm({ policy, saving, error, onSave }: { policy: PolicyDto; savi
           <ListField label="Ignored extensions" value={draft.fileMonitoring.ignoreExtensions} onChange={(v) => set("fileMonitoring", { ...draft.fileMonitoring, ignoreExtensions: v })} placeholder={".tmp\n.log"} />
         </div>
         <NumberField label="Cursor sampling interval" unit="s" value={draft.cursorSampling.intervalSeconds} min={1} onChange={(n) => set("cursorSampling", { ...draft.cursorSampling, intervalSeconds: n })} />
+
+        <SectionTitle>Screen capture</SectionTitle>
+        <ScreenCaptureFields
+          value={draft.screenCapture}
+          captureWindowTitles={draft.captureWindowTitles}
+          onChange={(v) => set("screenCapture", v)}
+        />
 
         <SectionTitle>Upload</SectionTitle>
         <NumberField label="Batch size" unit="events" value={draft.uploadBatchSize} min={1} max={500} onChange={(n) => set("uploadBatchSize", n)} />

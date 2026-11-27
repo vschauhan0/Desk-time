@@ -24,6 +24,11 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     throw 'Run this script from an elevated (administrator) PowerShell.'
 }
 
+# If the services were hardened (STOP/DELETE denied to admins), restore default rights first. Admins keep WRITE_DAC
+# in the hardened DACL, so this sdset succeeds; without it the Stop/delete below would fail with access denied.
+$DefaultSddl = 'D:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+foreach ($s in @($wdSvc, $svc)) { if (Get-Service $s -ErrorAction SilentlyContinue) { & sc.exe sdset $s $DefaultSddl | Out-Null } }
+
 Write-Host '[..] Stopping services'
 # Watchdog first - otherwise it notices the main service stop and restarts it mid-uninstall.
 if (Get-Service $wdSvc -ErrorAction SilentlyContinue) {

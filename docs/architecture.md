@@ -116,7 +116,11 @@ Unclean shutdowns (crash, power loss) are detected on the next start (`clean_shu
 * Keyboard: Raw Input is used **only to count** key-down events. The `RAWKEYBOARD` virtual-key/scan-code fields are never read;
   `InputBucketAggregator.RecordKeyDown()` takes no arguments; the payload types contain only counts and timestamps. A unit test
   guards this.
-* No global hooks, no injection, no clipboard, no screenshots (interface only, disabled), no webcam/microphone, no browser history/URLs.
+* No global hooks, no injection, no clipboard, no webcam/microphone, no browser history/URLs.
+* Screen capture (periodic screenshots, flagged-activity captures and clips, on-demand live view) ships **off** and is
+  enabled per policy scope. It never captures while the workstation is locked or the user is idle, and reading a stored
+  image is audited. Flagged sites are recognised from the window title, never from a URL. See
+  [screen-monitoring.md](screen-monitoring.md).
 * File monitoring is off by default, admin-configured paths only, metadata only.
 * Window titles / command lines are collected only if the effective policy allows (`captureWindowTitles`, `captureCommandLines`).
 

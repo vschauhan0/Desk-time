@@ -8,6 +8,7 @@ import { Card, PageHeader } from "@/components/ui/primitives";
 import { DataState, EmptyState } from "@/components/ui/states";
 import { KpiCard } from "@/components/ui/widgets";
 import { SecurityEventList } from "@/features/security/security-event-list";
+import { TamperAlertBanner } from "@/features/security/tamper-banner";
 import { APP_SERIES, totalsToBars, UsageLegendNote } from "@/features/shared/app-usage";
 import { useApi } from "@/hooks/use-api";
 import { formatNumber, ratio } from "@/lib/format";
@@ -48,6 +49,7 @@ export function OverviewPage() {
   return (
     <>
       <PageHeader title="Overview" subtitle="Fleet status and today's activity at a glance." />
+      <TamperAlertBanner />
       <DataState loading={loading} error={error} onRetry={() => void mutate()} skeleton={<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <div key={i} className="card skeleton h-24" />)}</div>}>
         {data && (
           <div className="space-y-5">

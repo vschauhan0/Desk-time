@@ -35,6 +35,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AppCategoryRule> AppCategoryRules => Set<AppCategoryRule>();
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
+    public DbSet<DeviceInventory> DeviceInventories => Set<DeviceInventory>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

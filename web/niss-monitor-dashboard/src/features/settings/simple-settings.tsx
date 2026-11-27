@@ -26,7 +26,27 @@ function RetentionForm({ initial, onSaved }: { initial: RetentionSettings; onSav
           <NumberField label="Application summaries" unit="days" value={v.applicationSummariesDays} onChange={(n) => set({ applicationSummariesDays: n })} />
           <NumberField label="Device health / metrics" unit="days" value={v.deviceHealthDays} onChange={(n) => set({ deviceHealthDays: n })} />
           <NumberField label="Audit logs" unit="days" value={v.auditLogsDays} onChange={(n) => set({ auditLogsDays: n })} />
+          <NumberField
+            label="Screenshots"
+            unit="days"
+            value={v.screenshotDays}
+            onChange={(n) => set({ screenshotDays: n })}
+            hint="Automatic periodic screenshots. The nightly job deletes the JPEG files as well as the rows."
+          />
+          <NumberField
+            label="Flagged screenshots & clips"
+            unit="days"
+            value={v.flaggedScreenshotDays}
+            onChange={(n) => set({ flaggedScreenshotDays: n })}
+            hint="Captures triggered by a flagged site or app. Usually kept longer than periodic ones."
+          />
         </div>
+        {v.flaggedScreenshotDays > 0 && v.screenshotDays > 0 && v.flaggedScreenshotDays < v.screenshotDays && (
+          <Notice tone="warn">
+            Flagged captures are set to expire sooner than periodic ones. Flagged captures are the evidence of a policy
+            breach, so they are normally kept longer.
+          </Notice>
+        )}
         <Button variant="primary" icon={Save} loading={save.pending} onClick={() => void save.run(v).then((r) => { if (r) { setSaved(true); onSaved(); } })}>Save retention</Button>
       </div>
     </Card>
