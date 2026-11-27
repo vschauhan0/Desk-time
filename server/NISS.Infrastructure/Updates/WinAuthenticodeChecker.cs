@@ -9,7 +9,7 @@ namespace NISS.Infrastructure.Updates;
 /// <summary>
 /// Windows Authenticode verification of file bytes against a publisher-identity pin.
 /// Two steps: WinVerifyTrust (the signature is valid, the file is unmodified, the chain is trusted by this machine),
-/// then the signer certificate (or any certificate in its chain) must have a subject equal to ANY accepted pin
+/// then the LEAF signer certificate subject only (never an issuer or chain subject) must equal ANY accepted pin
 /// subject. Never a leaf-thumbprint comparison, so a certificate renewal under the same subject keeps working.
 /// Not unit-tested (needs real signed binaries); verify manually with a signed package.
 /// </summary>

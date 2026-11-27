@@ -94,6 +94,7 @@ public sealed class UpdateHostOptions
 public sealed class WindowsUpdateHost : IUpdateHost
 {
     private const string ManifestName = "manifest.json";
+    private static readonly string[] SiteSettingsFiles = ["agentsettings.json", "agentsettings.local.json"];
     private readonly UpdateHostOptions _o;
     private readonly HttpClient _http;
     private readonly IUpdateServiceControl _svc;
@@ -170,7 +171,7 @@ public sealed class WindowsUpdateHost : IUpdateHost
         var manifest = ReadManifest(archive);
         if (manifest.WatchdogChanged)
             _o.Warn?.Invoke($"Release {version} changes the watchdog, but watchdog self-update is not supported in this agent version; the running watchdog binary is NOT replaced. Reinstall the watchdog manually.");
-        InstallFiles(archive, manifest, version, target, ct);
+        InstallFiles(archive, manifest, version, target, ct, CurrentDir);
         return Task.CompletedTask;
     }
 
@@ -181,7 +182,7 @@ public sealed class WindowsUpdateHost : IUpdateHost
     }
 
     /// <summary>Extracts exactly the manifest-listed files into a staging folder, then moves it into place.</summary>
-    internal static void InstallFiles(ZipArchive archive, ReleaseManifest manifest, string version, string targetDir, CancellationToken ct)
+    internal static void InstallFiles(ZipArchive archive, ReleaseManifest manifest, string version, string targetDir, CancellationToken ct, string? settingsSourceDir = null)
     {
         if (!string.Equals(manifest.Version, version, StringComparison.Ordinal))
             throw new InvalidOperationException($"Package version {manifest.Version} does not match {version}.");
@@ -200,6 +201,14 @@ public sealed class WindowsUpdateHost : IUpdateHost
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                 File.WriteAllBytes(dest, bytes);
             }
+            // Per-site config is deliberately NOT in the package: carry the device's own files forward from where the running
+            // service reads them, or the new version would fall back to code defaults (wrong server, no TLS pin) and fail its health gate.
+            if (settingsSourceDir is not null)
+                foreach (var name in SiteSettingsFiles)
+                {
+                    var src = Path.Combine(settingsSourceDir, name);
+                    if (File.Exists(src)) File.Copy(src, Path.Combine(staging, name), overwrite: true);
+                }
             if (Directory.Exists(targetDir)) Directory.Delete(targetDir, true);
             Directory.CreateDirectory(Path.GetDirectoryName(targetDir)!);
             Directory.Move(staging, targetDir);

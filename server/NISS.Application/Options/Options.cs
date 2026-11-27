@@ -99,7 +99,7 @@ public sealed class AgentUpdateOptions
     public string Root { get; set; } = "";
     /// <summary>
     /// Publisher pin: Authenticode subjects (e.g. "CN=Acme IT, O=Acme, C=US") accepted for update packages. A file passes
-    /// when signed by a certificate whose subject (or a chain issuer's subject) equals ANY entry; list two during a
+    /// when signed by a certificate whose LEAF signer subject (not an issuer or chain subject) equals ANY entry; list two during a
     /// certificate rotation. Empty rejects every package.
     /// </summary>
     public List<string> AcceptedPublisherSubjects { get; set; } = [];

@@ -28,8 +28,6 @@ public static class Program
         builder.Services.Configure<HostOptions>(o =>
         {
             o.ShutdownTimeout = TimeSpan.FromSeconds(10);
-            // A failing update worker must never stop the host (and with it the anti-tamper WatchdogWorker).
-            o.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
         });
 
         builder.Logging.ClearProviders();

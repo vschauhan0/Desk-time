@@ -385,4 +385,20 @@ public sealed class WindowsUpdateHostTests : IDisposable
         Assert.Equal("2.0.0", resolved);
         Assert.Null(host.State.Pending);
     }
+
+    [Fact]
+    public async Task Install_carries_the_devices_site_settings_into_the_new_version_folder()
+    {
+        var (host, _) = Host();   // running from the legacy install dir
+        File.WriteAllText(Path.Combine(Install, "agentsettings.json"), "{\"Agent\":{\"Server\":{\"BaseUrl\":\"https://real:8443\"}}}");
+        File.WriteAllText(Path.Combine(Install, "agentsettings.local.json"), "{\"local\":true}");
+        var good = new byte[] { 1 };
+        var zip = Zip([("agent.exe", good)], new ReleaseManifest("2.0.0", null, [new ManifestFile("agent.exe", Sha(good))], false, null));
+
+        await host.InstallSideBySideAsync("2.0.0", zip, CancellationToken.None);
+
+        var dir = UpdateLayout.VersionDir(Install, "2.0.0");
+        Assert.Contains("real:8443", File.ReadAllText(Path.Combine(dir, "agentsettings.json")));
+        Assert.Equal("{\"local\":true}", File.ReadAllText(Path.Combine(dir, "agentsettings.local.json")));
+    }
 }
