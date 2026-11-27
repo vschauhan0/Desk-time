@@ -23,11 +23,8 @@ internal sealed class WinAuthenticodeChecker : ISignatureChecker, ISignerSubject
             if (!WinVerifyTrustFile(path)) return false;
             using var signer = LoadSigner(path);
             if (signer is null) return false;
-            if (MatchesAny(signer.Subject, pin)) return true;
-            using var chain = new X509Chain();
-            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            chain.Build(signer);
-            return chain.ChainElements.Any(e => MatchesAny(e.Certificate.Subject, pin));
+            // Leaf publisher only: pinning a CA/intermediate subject must NOT trust everything that CA issued.
+            return MatchesAny(signer.Subject, pin);
         });
     }
 
@@ -51,9 +48,19 @@ internal sealed class WinAuthenticodeChecker : ISignatureChecker, ISignerSubject
         catch (CryptographicException) { return null; }
     }
 
+    /// <summary>".dll" when the PE header has IMAGE_FILE_DLL set, else ".exe", so WinVerifyTrust sees the real file type.</summary>
+    internal static string PeExtension(byte[] b)
+    {
+        if (b.Length < 0x40) return ".exe";
+        var pe = BitConverter.ToInt32(b, 0x3C);
+        var chOffset = pe + 4 + 18;
+        if (pe < 0 || chOffset + 2 > b.Length) return ".exe";
+        return (BitConverter.ToUInt16(b, chOffset) & 0x2000) != 0 ? ".dll" : ".exe";
+    }
+
     private static T WithTempFile<T>(byte[] bytes, Func<string, T> use)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"niss-verify-{Guid.NewGuid():N}.bin");
+        var path = Path.Combine(Path.GetTempPath(), $"niss-verify-{Guid.NewGuid():N}{PeExtension(bytes)}");
         try
         {
             File.WriteAllBytes(path, bytes);
