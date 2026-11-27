@@ -1,4 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NISS.Api.Tests.Infrastructure;
+using NISS.Application.Abstractions;
+using NISS.Domain.Entities;
 using NISS.Monitor.Protocol;
 
 namespace NISS.Api.Tests;
@@ -46,5 +50,47 @@ public sealed class TamperAlertTests(ApiFactory factory) : IClassFixture<ApiFact
         var events = await EventsAsync(admin, d);
         Assert.DoesNotContain(events, e => e.Kind == SecurityEventKinds.TamperSuspected);
         Assert.Contains(events, e => e.Kind == SecurityEventKinds.ServiceStopped);
+    }
+
+    private async Task AssignUpdateAsync(TestDevice d)
+    {
+        using var scope = factory.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var id = await db.Devices.Where(x => x.DeviceCode == d.DeviceId).Select(x => x.Id).SingleAsync();
+        db.DeviceUpdateStates.Add(new DeviceUpdateState { Id = Guid.NewGuid(), DeviceId = id, AssignedVersion = "9.9.9.0", Phase = UpdatePhase.Applying, UpdatedAt = factory.Clock.GetUtcNow() });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Stop_during_a_server_assigned_update_is_not_tamper()
+    {
+        var admin = await factory.AdminAsync();
+        var d = await factory.EnrollDeviceAsync(admin, "EMP-TMP3");
+        await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow()));
+        await AssignUpdateAsync(d);
+        factory.Clock.Advance(TimeSpan.FromSeconds(20));
+
+        await d.IngestAsync(d.Event(EventTypes.AgentStopped, factory.Clock.GetUtcNow(),
+            P.Agent(message: StopReasons.UpdateRestart, interactiveUser: "CONTOSO\\jdoe")));
+
+        var events = await EventsAsync(admin, d);
+        Assert.DoesNotContain(events, e => e.Kind == SecurityEventKinds.TamperSuspected);
+        Assert.Contains(events, e => e.Kind == SecurityEventKinds.ServiceStopped);
+    }
+
+    [Fact]
+    public async Task Forged_update_hint_without_a_server_assigned_update_still_raises_tamper()
+    {
+        var admin = await factory.AdminAsync();
+        var d = await factory.EnrollDeviceAsync(admin, "EMP-TMP4");
+        await d.HeartbeatAsync(d.NewHeartbeat(factory.Clock.GetUtcNow()));
+        factory.Clock.Advance(TimeSpan.FromSeconds(20));
+
+        // The agent claims an update restart, but the server assigned nothing: the hint must not suppress the alert.
+        await d.IngestAsync(d.Event(EventTypes.AgentStopped, factory.Clock.GetUtcNow(),
+            P.Agent(message: StopReasons.UpdateRestart, interactiveUser: "CONTOSO\\jdoe")));
+
+        var tamper = Assert.Single(await EventsAsync(admin, d), e => e.Kind == SecurityEventKinds.TamperSuspected);
+        Assert.Equal("CRITICAL", tamper.Severity);
     }
 }

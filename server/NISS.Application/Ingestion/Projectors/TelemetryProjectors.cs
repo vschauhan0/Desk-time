@@ -111,7 +111,7 @@ internal sealed class NetworkProjector(ILiveStateWriter live) : IEventProjector
 
 /// <summary>AGENT_* lifecycle events.</summary>
 internal sealed class AgentEventProjector(
-    ILiveStateWriter live, IDeviceStatusService statusService, ISecurityEventService security) : IEventProjector
+    ILiveStateWriter live, IDeviceStatusService statusService, ISecurityEventService security, Updates.IAgentUpdateService updates) : IEventProjector
 {
     public IReadOnlyCollection<string> EventTypes { get; } =
     [
@@ -145,11 +145,15 @@ internal sealed class AgentEventProjector(
                 if ((device.LastSeen is null || ctx.Timestamp >= device.LastSeen) && !HealthEvaluator.IsAdminState(device.Status))
                 {
                     device.ServiceStoppedAt = device.ServiceStoppedAt is { } prev && prev > ctx.Timestamp ? prev : ctx.Timestamp;
-                    await statusService.ApplyAsync(device, DeviceHealth.ServiceStopped, p.Reason ?? "AGENT_STOPPED", ct);
+                    var deliberate = !string.IsNullOrWhiteSpace(p.InteractiveUser);
+                    // SERVER-AUTHORITATIVE: only the server's own rollout state may excuse a deliberate stop. Nothing the
+                    // agent reports (reason text, a marker) can suppress the alert - a local admin could forge that.
+                    var updateRestart = deliberate && await updates.HasAssignedInProgressUpdateAsync(device.Id, ct);
+                    await statusService.ApplyAsync(device, DeviceHealth.ServiceStopped, updateRestart ? StopReasons.UpdateRestart : p.Reason ?? "AGENT_STOPPED", ct);
                     // Deliberate stop while a user was signed in (the agent only sets InteractiveUser then). Raise a
                     // Critical, attributed tamper alert that is NOT auto-resolved - so the watchdog restarting the
                     // service seconds later cannot silently clear it; a human must acknowledge it.
-                    if (!string.IsNullOrWhiteSpace(p.InteractiveUser))
+                    if (deliberate && !updateRestart)
                         await security.RaiseAsync(dref, SecurityEventKinds.TamperSuspected, SecuritySeverity.Critical,
                             $"{device.DeviceCode} ({device.Hostname}): monitoring service was stopped while {p.InteractiveUser} was signed in.",
                             onlyIfNoneOpen: false, throttle: TimeSpan.FromMinutes(1), ct: ct);
