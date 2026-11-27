@@ -90,3 +90,17 @@ public sealed class WorkerOptions
     public int RetentionHourLocal { get; set; } = 3;
     public int TokenCleanupIntervalMinutes { get; set; } = 60;
 }
+
+/// <summary>Agent auto-update settings (<c>AgentUpdate</c> section).</summary>
+public sealed class AgentUpdateOptions
+{
+    public const string Section = "AgentUpdate";
+    /// <summary>Root directory for uploaded agent packages. Empty = a temp directory (dev/test).</summary>
+    public string Root { get; set; } = "";
+    /// <summary>
+    /// Publisher pin: Authenticode subjects (e.g. "CN=Acme IT, O=Acme, C=US") accepted for update packages. A file passes
+    /// when signed by a certificate whose subject (or a chain issuer's subject) equals ANY entry; list two during a
+    /// certificate rotation. Empty rejects every package.
+    /// </summary>
+    public List<string> AcceptedPublisherSubjects { get; set; } = [];
+}

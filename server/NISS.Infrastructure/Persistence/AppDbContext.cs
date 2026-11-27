@@ -36,6 +36,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
     public DbSet<DeviceInventory> DeviceInventories => Set<DeviceInventory>();
+    public DbSet<AgentPackage> AgentPackages => Set<AgentPackage>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

@@ -72,6 +72,63 @@ namespace NISS.Infrastructure.Persistence.Migrations
                     b.ToTable("admin_users", (string)null);
                 });
 
+            modelBuilder.Entity("NISS.Domain.Entities.AgentPackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("RelPath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("rel_path");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("SignerSubject")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("signer_subject");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("uploaded_by");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_packages");
+
+                    b.HasIndex("Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_agent_packages_version");
+
+                    b.ToTable("agent_packages", (string)null);
+                });
+
             modelBuilder.Entity("NISS.Domain.Entities.AgentStatus", b =>
                 {
                     b.Property<Guid>("DeviceId")

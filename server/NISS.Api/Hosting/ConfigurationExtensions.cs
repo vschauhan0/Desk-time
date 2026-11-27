@@ -36,5 +36,6 @@ public static class ConfigurationExtensions
         services.AddOptions<WorkerOptions>().Bind(configuration.GetSection(WorkerOptions.Section));
         services.AddOptions<ScreenshotStorageOptions>().Bind(configuration.GetSection(ScreenshotStorageOptions.Section));
         services.AddOptions<ScreenLiveOptions>().Bind(configuration.GetSection(ScreenLiveOptions.Section));
+        services.AddOptions<AgentUpdateOptions>().Bind(configuration.GetSection(AgentUpdateOptions.Section));
     }
 }

@@ -38,6 +38,10 @@
     "FlaggedRetentionDays": 90,
     "MinFreeDiskMb": 2048
   },
+  "AgentUpdate": {
+    "Root": "",
+    "AcceptedPublisherSubjects": [ "CN=REPLACE-WITH-YOUR-CODE-SIGNING-SUBJECT" ]
+  },
   "ScreenLive": {
     "MaxSessionMinutes": 30,
     "MaxFps": 8

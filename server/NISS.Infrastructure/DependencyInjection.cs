@@ -24,6 +24,10 @@ public static class DependencyInjection
         services.AddScoped<IDeviceNumberSequence, DeviceNumberSequence>();
         services.AddScoped<IRetentionStore, RetentionStore>();
         services.AddScoped<Application.Screenshots.IScreenshotStore, Storage.FileScreenshotStore>();
+        services.AddScoped<Application.Updates.IPackageStore, Storage.FilePackageStore>();
+        services.AddSingleton<Updates.WinAuthenticodeChecker>();
+        services.AddSingleton<Monitor.Protocol.ISignatureChecker>(sp => sp.GetRequiredService<Updates.WinAuthenticodeChecker>());
+        services.AddSingleton<Application.Updates.ISignerSubjectReader>(sp => sp.GetRequiredService<Updates.WinAuthenticodeChecker>());
 
         services.AddSingleton<IPasswordService, PasswordService>();
         services.AddSingleton<ISecretHasher, SecretHasher>();

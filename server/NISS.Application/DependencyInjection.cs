@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IDeviceHealthService, DeviceHealthService>();
         services.AddScoped<ILiveStateService, LiveStateService>();
         services.AddScoped<IDataSeeder, DataSeeder>();
+        services.AddScoped<Updates.IAgentPackageService, Updates.AgentPackageService>();
 
         // Agent side
         services.AddScoped<IEnrollmentService, EnrollmentService>();

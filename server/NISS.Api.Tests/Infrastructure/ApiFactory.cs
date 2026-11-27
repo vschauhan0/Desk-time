@@ -29,6 +29,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The clock the server uses. Starts at the real current time.</summary>
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
 
+    /// <summary>Stands in for Authenticode in tests: set Accept to accept/reject every executable.</summary>
+    public FakeSignatureChecker Signatures { get; } = new();
+
     public ApiFactory() : this(true, null) { }
 
     internal ApiFactory(bool resetDatabase, Dictionary<string, string?>? overrides)
@@ -66,6 +69,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+            services.RemoveAll<NISS.Monitor.Protocol.ISignatureChecker>();
+            services.AddSingleton<NISS.Monitor.Protocol.ISignatureChecker>(Signatures);
         });
     }
 
@@ -76,4 +81,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Runs <paramref name="seed"/> once per factory (xUnit creates the test class per test, the factory is shared).</summary>
     public async Task<T> OnceAsync<T>(string key, Func<Task<T>> seed) where T : notnull =>
         (T)await _once.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await seed())).Value;
+}
+
+public sealed class FakeSignatureChecker : NISS.Monitor.Protocol.ISignatureChecker
+{
+    public volatile bool Accept = true;
+    public bool IsAuthenticodeSignedBy(byte[] fileBytes, NISS.Monitor.Protocol.PublisherPin pin) => Accept;
 }

@@ -98,6 +98,7 @@ public static class ServiceRegistration
         api.MapEnrollmentTokens();
         api.MapDevices();
         api.MapScreenshots();
+        api.MapAgentUpdates();
         api.MapLiveSocket();
         api.MapEmployees();
         api.MapEventLists();
