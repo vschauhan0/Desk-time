@@ -1,0 +1,16 @@
+{
+  "name": "niss-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NISS Employee PC Monitoring System - repo-root convenience scripts. The web dashboard lives in web/niss-monitor-dashboard; these forward to it so `npm run dev` works from the repo root.",
+  "scripts": {
+    "dev": "npm --prefix web/niss-monitor-dashboard run dev",
+    "build": "npm --prefix web/niss-monitor-dashboard run build",
+    "start": "npm --prefix web/niss-monitor-dashboard run start",
+    "lint": "npm --prefix web/niss-monitor-dashboard run lint",
+    "typecheck": "npm --prefix web/niss-monitor-dashboard run typecheck",
+    "test": "npm --prefix web/niss-monitor-dashboard test",
+    "server:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./NISS.Server.Start.ps1",
+    "server:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./NISS.Server.Stop.ps1"
+  }
+}
