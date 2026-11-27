@@ -789,3 +789,42 @@ export const APP_CATEGORIES = [
   "System",
   "Unknown",
 ] as const;
+
+// ----- Agent auto-update ----------------------------------------------------------------------------
+
+/** An uploaded, verified agent update package. */
+export interface AgentPackageDto {
+  version: string;
+  sizeBytes: number;
+  sha256: string;
+  signerSubject: string | null;
+  uploadedBy: string | null;
+  uploadedAtUtc: IsoString;
+  notes: string | null;
+}
+
+export type RolloutState = "Draft" | "Canary" | "RolledOut" | "Done" | "Paused" | "RolledBack";
+
+/** A rollout of one package version. Counts cover the canary set; `gateOpen` is the server's canary health + bake verdict. */
+export interface AgentRolloutDto {
+  id: string;
+  version: string;
+  state: RolloutState | string;
+  createdAtUtc: IsoString;
+  canary: number;
+  updated: number;
+  failed: number;
+  pending: number;
+  gateOpen: boolean;
+  gateReason: string | null;
+}
+
+/** Update state of one device (deviceId is the device code). */
+export interface DeviceUpdateStateDto {
+  deviceId: string;
+  assignedVersion: string | null;
+  phase: string;
+  lastError: string | null;
+  failedVersion: string | null;
+  updatedAtUtc: IsoString | null;
+}

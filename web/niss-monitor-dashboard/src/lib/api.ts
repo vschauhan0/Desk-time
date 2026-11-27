@@ -2,6 +2,9 @@ import { getApiBaseUrl } from "./config";
 import { tokenStore } from "./tokens";
 import type {
   AdminUserDto,
+  AgentPackageDto,
+  AgentRolloutDto,
+  DeviceUpdateStateDto,
   AdminUserUpsert,
   AppCategoryRule,
   ApplicationActivityResponse,
@@ -224,7 +227,9 @@ async function send(base: string, path: string, opts: RequestOptions): Promise<R
   const token = opts.auth === false ? null : tokenStore.getAccess();
   if (token) headers.Authorization = `Bearer ${token}`;
   const init: RequestInit = { method: opts.method ?? "GET", headers, signal: opts.signal };
-  if (opts.body !== undefined) {
+  if (opts.body instanceof FormData) {
+    init.body = opts.body; // multipart: the browser sets the boundary Content-Type itself
+  } else if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(opts.body);
   }
@@ -428,6 +433,22 @@ export const api = {
   healthThresholds: () => request<HealthThresholds>("/settings/health-thresholds"),
   saveHealthThresholds: (body: HealthThresholds) =>
     request<HealthThresholds>("/settings/health-thresholds", { method: "PUT", body }),
+
+  // agent updates
+  agentRollouts: () => request<AgentRolloutDto[]>("/agent-rollouts"),
+  agentRolloutDevices: (id: string) => request<DeviceUpdateStateDto[]>(`/agent-rollouts/${enc(id)}/devices`),
+  uploadAgentPackage: (file: File) => {
+    const body = new FormData();
+    body.append("package", file);
+    return request<AgentPackageDto>("/agent-packages", { method: "POST", body });
+  },
+  createRollout: (version: string, notes?: string) =>
+    request<AgentRolloutDto>("/agent-rollouts", { method: "POST", body: { version, notes: notes || null } }),
+  setRolloutCanary: (id: string, deviceIds: string[]) =>
+    request<AgentRolloutDto>(`/agent-rollouts/${enc(id)}/canary`, { method: "POST", body: { deviceIds } }),
+  promoteRollout: (id: string) => request<AgentRolloutDto>(`/agent-rollouts/${enc(id)}/rollout`, { method: "POST" }),
+  pauseRollout: (id: string) => request<AgentRolloutDto>(`/agent-rollouts/${enc(id)}/pause`, { method: "POST" }),
+  rollbackRollout: (id: string) => request<AgentRolloutDto>(`/agent-rollouts/${enc(id)}/rollback`, { method: "POST" }),
 
   // enrollment tokens
   enrollmentTokens: () => request<EnrollmentTokenDto[]>("/enrollment-tokens"),

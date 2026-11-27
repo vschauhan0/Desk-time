@@ -57,6 +57,8 @@ public static class AgentUpdateEndpoints
             var rollout = await updates.CreateRolloutAsync(req.Version, req.Notes, user.Username ?? "unknown", ct);
             return Results.Created($"/api/v1/agent-rollouts/{rollout.Id}", await updates.GetRolloutAsync(rollout.Id, ct));
         });
+        rollouts.MapGet("", async (IAgentUpdateService updates, CancellationToken ct) => Results.Ok(await updates.ListRolloutsAsync(ct)));
+        rollouts.MapGet("{id:guid}/devices", async (Guid id, IAgentUpdateService updates, CancellationToken ct) => Results.Ok(await updates.GetRolloutDevicesAsync(id, ct)));
         rollouts.MapGet("{id:guid}", async (Guid id, IAgentUpdateService updates, CancellationToken ct) => Results.Ok(await updates.GetRolloutAsync(id, ct)));
         rollouts.MapPost("{id:guid}/canary", async (Guid id, CanaryRequest req, ICurrentUser user, IAgentUpdateService updates, CancellationToken ct) =>
         {

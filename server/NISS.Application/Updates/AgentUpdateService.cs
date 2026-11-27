@@ -46,6 +46,12 @@ public interface IAgentUpdateService
 
     Task<AgentRolloutDto> GetRolloutAsync(Guid rolloutId, CancellationToken ct);
 
+    /// <summary>Recent rollouts, newest first.</summary>
+    Task<IReadOnlyList<AgentRolloutDto>> ListRolloutsAsync(CancellationToken ct);
+
+    /// <summary>Update state of every device that has been assigned this rollout's version.</summary>
+    Task<IReadOnlyList<DeviceUpdateStateDto>> GetRolloutDevicesAsync(Guid rolloutId, CancellationToken ct);
+
     /// <summary>Canary outcome counts and whether the gate to "roll out to all" is open.</summary>
     Task<RolloutHealth> CanaryHealthAsync(Guid rolloutId, CancellationToken ct);
 
@@ -135,7 +141,29 @@ internal sealed class AgentUpdateService(IAppDbContext db, ISettingsService sett
     {
         var rollout = await FindAsync(rolloutId, ct);
         var h = await EvaluateAsync(rollout, ct);
-        return new AgentRolloutDto(rollout.Id.ToString(), rollout.Version, rollout.State, rollout.CreatedAt, h.Canary, h.Updated, h.Failed, h.Pending);
+        return ToDto(rollout, h);
+    }
+
+    private static AgentRolloutDto ToDto(AgentRollout rollout, RolloutHealth h) =>
+        new(rollout.Id.ToString(), rollout.Version, rollout.State, rollout.CreatedAt, h.Canary, h.Updated, h.Failed, h.Pending, h.GateOpen, h.Reason);
+
+    public async Task<IReadOnlyList<AgentRolloutDto>> ListRolloutsAsync(CancellationToken ct)
+    {
+        var rollouts = await db.AgentRollouts.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(20).ToListAsync(ct);
+        var result = new List<AgentRolloutDto>(rollouts.Count);
+        foreach (var r in rollouts) result.Add(ToDto(r, await EvaluateAsync(r, ct)));
+        return result;
+    }
+
+    public async Task<IReadOnlyList<DeviceUpdateStateDto>> GetRolloutDevicesAsync(Guid rolloutId, CancellationToken ct)
+    {
+        var rollout = await FindAsync(rolloutId, ct);
+        var rows = await (from s in db.DeviceUpdateStates.AsNoTracking()
+                          join d in db.Devices.AsNoTracking() on s.DeviceId equals d.Id
+                          where s.AssignedVersion == rollout.Version
+                          orderby d.DeviceCode
+                          select new { d.DeviceCode, s.AssignedVersion, s.Phase, s.LastError, s.FailedVersion, s.UpdatedAt }).Take(2000).ToListAsync(ct);
+        return rows.Select(r => new DeviceUpdateStateDto(r.DeviceCode, r.AssignedVersion, r.Phase, r.LastError, r.FailedVersion, r.UpdatedAt)).ToList();
     }
 
     public async Task<RolloutHealth> CanaryHealthAsync(Guid rolloutId, CancellationToken ct) => await EvaluateAsync(await FindAsync(rolloutId, ct), ct);

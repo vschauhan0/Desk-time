@@ -8,6 +8,7 @@ import {
   HeartPulse,
   LayoutDashboard,
   Monitor,
+  PackageCheck,
   ScrollText,
   Settings,
   ShieldAlert,
@@ -67,6 +68,7 @@ export const NAV: NavGroup[] = [
     title: "Administration",
     items: [
       { href: "/reports", label: "Reports", icon: BarChart3 },
+      { href: "/updates", label: "Agent Updates", icon: PackageCheck, minRole: "ADMIN" },
       { href: "/settings", label: "Settings", icon: Settings, minRole: "ADMIN" },
       { href: "/audit", label: "Audit Log", icon: ScrollText, minRole: "ADMIN" },
     ],

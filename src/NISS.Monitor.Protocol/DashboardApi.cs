@@ -474,7 +474,9 @@ public sealed record AgentRolloutDto(
     int Canary,
     int Updated,
     int Failed,
-    int Pending);
+    int Pending,
+    bool GateOpen,
+    string? GateReason);
 
 /// <summary>Update state of one device.</summary>
 public sealed record DeviceUpdateStateDto(

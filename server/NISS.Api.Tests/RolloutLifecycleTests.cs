@@ -102,6 +102,9 @@ public sealed class RolloutLifecycleTests(ApiFactory factory) : IClassFixture<Ap
         Assert.Equal("Canary", rollout.State);
 
         Assert.Equal(HttpStatusCode.Conflict, (await Promote(admin, rollout.Id)).StatusCode);   // nothing attempted yet
+        var closed = await admin.GetJsonAsync<AgentRolloutDto>($"/api/v1/agent-rollouts/{rollout.Id}");
+        Assert.False(closed.GateOpen);
+        Assert.False(string.IsNullOrEmpty(closed.GateReason));
 
         await SeedUpdatedAsync(d, v, Healthy);
         Assert.Equal(HttpStatusCode.Conflict, (await Promote(admin, rollout.Id)).StatusCode);   // healthy but not baked
@@ -141,6 +144,10 @@ public sealed class RolloutLifecycleTests(ApiFactory factory) : IClassFixture<Ap
         Assert.Equal(0, dto.Failed);
         Assert.Equal(2, dto.Pending);
 
+        Assert.True((await admin.GetJsonAsync<AgentRolloutDto>($"/api/v1/agent-rollouts/{rollout.Id}")).GateOpen);
+        var devices = await admin.GetJsonAsync<List<DeviceUpdateStateDto>>($"/api/v1/agent-rollouts/{rollout.Id}/devices");
+        Assert.Equal(2, devices.Count);   // good + stale were assigned the version; the offline one never was
+        Assert.Contains(rollout.Id, (await admin.GetJsonAsync<List<AgentRolloutDto>>("/api/v1/agent-rollouts")).Select(r => r.Id));
         Assert.Equal(HttpStatusCode.OK, (await Promote(admin, rollout.Id)).StatusCode);
     }
 
